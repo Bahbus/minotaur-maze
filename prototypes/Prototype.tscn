@@ -5,22 +5,22 @@
 
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_hv57j"]
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_rj735"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rj735"]
+size = Vector2(10, 10)
 
 [node name="Prototype" type="Node2D"]
 
 [node name="Player" type="CharacterBody2D" parent="."]
-top_level = true
 position = Vector2(12, 13)
 script = ExtResource("1_hv57j")
 
 [node name="Sprite2D" type="Sprite2D" parent="Player"]
 position = Vector2(-7.86781e-06, 1.60933e-05)
-scale = Vector2(16, 16)
+scale = Vector2(10, 10)
 texture = SubResource("PlaceholderTexture2D_hv57j")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
-shape = SubResource("CircleShape2D_rj735")
+shape = SubResource("RectangleShape2D_rj735")
 
 [node name="Maze" type="Node2D" parent="."]
 script = ExtResource("2_rj735")
