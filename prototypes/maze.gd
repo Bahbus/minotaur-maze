@@ -34,11 +34,14 @@ func place_rooms():
 	available_rooms.shuffle()
 
 	for room in available_rooms:
+		var rotation_angle = [0, -90, 90, 180][randi() % 4]  # Random rotation angle
+		var rotated_room = room.rotate(rotation_angle)  # Use Room's rotation method
+
 		for attempt in range(20):
 			var pos = Vector2i(randi() % (ROWS - 3) + 1, randi() % (COLS - 3) + 1)
-			if can_place_room(room, pos):
-				apply_room_to_grid(room, pos)
-				rooms.append({ "room": room, "position": pos })
+			if can_place_room(rotated_room, pos):
+				apply_room_to_grid(rotated_room, pos)
+				rooms.append({ "room": rotated_room, "position": pos })
 				break
 
 func can_place_room(room, pos: Vector2i) -> bool:
@@ -52,7 +55,6 @@ func apply_room_to_grid(room, pos):
 	for cell in room.cells:
 		var abs_pos = cell + pos
 		set_cell_type(abs_pos, "room")
-
 		# Remove walls between adjacent cells of the same room
 		for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var neighbor_pos = abs_pos + offset
