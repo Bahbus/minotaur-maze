@@ -94,7 +94,9 @@ func place_exit_stairs():
 			if get_cell(pos).get("visited", false):
 				valid_positions.append(pos)
 	if valid_positions.size() > 0:
-		set_cell_type(valid_positions[randi() % valid_positions.size()], "exit_stairs")
+		var exit_pos = valid_positions[randi() % valid_positions.size()]
+		set_cell_type(exit_pos, "exit_stairs")
+		print("Exit stairs placed at: ", exit_pos)  # Debugging
 
 ### 🔗 **Pathfinding & Connectivity**
 func connect_room_exits():
@@ -188,12 +190,12 @@ func build_collision_shapes():
 				if wall["wall"]:
 					add_wall_collision(collision_body, pos + wall["offset"], wall["extents"])
 
-func add_wall_collision(parent: Node, position: Vector2, extents: Vector2):
+func add_wall_collision(parent: Node, pos: Vector2, extents: Vector2):
 	var shape = RectangleShape2D.new()
 	shape.extents = extents
 	var collision_shape = CollisionShape2D.new()
 	collision_shape.shape = shape
-	collision_shape.position = position
+	collision_shape.position = pos
 	parent.add_child(collision_shape)
 
 ### ✏️ **Drawing & Visualization**

@@ -1,17 +1,32 @@
 extends CharacterBody2D
 
-const SPEED = 200
+@export var maze: Node2D  # Assign this in the editor or dynamically in code
+@export var move_speed := 100
 
-func _physics_process(delta):
-	var direction = Vector2.ZERO
-	if Input.is_action_pressed("ui_right"):
-		direction.x += 1
-	if Input.is_action_pressed("ui_left"):
-		direction.x -= 1
-	if Input.is_action_pressed("ui_down"):
-		direction.y += 1
-	if Input.is_action_pressed("ui_up"):
-		direction.y -= 1
-	direction = direction.normalized()
-	velocity = direction * SPEED
+var move_direction := Vector2.ZERO
+
+func _physics_process(_delta):
+	move_direction = Vector2(
+		Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left"),
+		Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
+	).normalized()
+	velocity = move_direction * move_speed
 	move_and_slide()
+	check_exit_condition()
+
+func check_exit_condition():
+	if maze:
+		var player_cell = get_tile_position()
+		var tile_type = maze.get_cell(player_cell).get("type", "")
+		print("Player is at: ", player_cell, " | Tile type: ", tile_type)  # Debugging
+		if tile_type == "exit_stairs":
+			handle_level_completion()
+
+
+func get_tile_position() -> Vector2i:
+	# Force player position to snap to the grid
+	return Vector2i(floor(position.x / 32), floor(position.y / 32))
+
+func handle_level_completion():
+	print("Level Complete!")  # Temporary win state
+#	get_tree().change_scene_to_file("res://scenes/win_screen.tscn")  # Placeholder win screen

@@ -10,9 +10,10 @@ size = Vector2(10, 10)
 
 [node name="Prototype" type="Node2D"]
 
-[node name="Player" type="CharacterBody2D" parent="."]
+[node name="Player" type="CharacterBody2D" parent="." node_paths=PackedStringArray("maze")]
 position = Vector2(12, 13)
 script = ExtResource("1_hv57j")
+maze = NodePath("../Maze")
 
 [node name="Sprite2D" type="Sprite2D" parent="Player"]
 position = Vector2(-7.86781e-06, 1.60933e-05)
