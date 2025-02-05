@@ -1,27 +1,7 @@
-[gd_scene load_steps=5 format=3 uid="uid://bxhjjp3ox6bhc"]
+[gd_scene load_steps=2 format=3 uid="uid://bxhjjp3ox6bhc"]
 
-[ext_resource type="Script" uid="uid://wngox1u5e4sq" path="res://prototypes/player.gd" id="1_hv57j"]
-[ext_resource type="Script" uid="uid://beeyv08l8r8wi" path="res://prototypes/maze.gd" id="2_rj735"]
-
-[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_hv57j"]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_rj735"]
-size = Vector2(10, 10)
+[ext_resource type="PackedScene" uid="uid://cdriy2nxhb3ob" path="res://src/scenes/maze.tscn" id="1_hv57j"]
 
 [node name="Prototype" type="Node2D"]
 
-[node name="Player" type="CharacterBody2D" parent="." node_paths=PackedStringArray("maze")]
-position = Vector2(12, 13)
-script = ExtResource("1_hv57j")
-maze = NodePath("../Maze")
-
-[node name="Sprite2D" type="Sprite2D" parent="Player"]
-position = Vector2(-7.86781e-06, 1.60933e-05)
-scale = Vector2(10, 10)
-texture = SubResource("PlaceholderTexture2D_hv57j")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
-shape = SubResource("RectangleShape2D_rj735")
-
-[node name="Maze" type="Node2D" parent="."]
-script = ExtResource("2_rj735")
+[node name="Maze" parent="." instance=ExtResource("1_hv57j")]

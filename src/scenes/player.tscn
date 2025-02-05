@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3 uid="uid://bk1gmr6d3e3v7"]
+
+[ext_resource type="Script" uid="uid://wngox1u5e4sq" path="res://src/data/player.gd" id="1_cusn3"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_hv57j"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rj735"]
+size = Vector2(10, 10)
+
+[node name="Player" type="CharacterBody2D" node_paths=PackedStringArray("maze")]
+script = ExtResource("1_cusn3")
+maze = NodePath("")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(-7.86781e-06, 1.60933e-05)
+scale = Vector2(10, 10)
+texture = SubResource("PlaceholderTexture2D_hv57j")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_rj735")

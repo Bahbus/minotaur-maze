@@ -15,8 +15,10 @@ func _physics_process(_delta):
 	check_exit_condition()
 
 func check_exit_condition():
-	if maze:
-		if maze.get_cell(get_tile_position()).get("type", "") == "exit_stairs":
+	if maze:  # Ensure we have a reference to the maze
+		var tile_type = maze.get_cell(get_tile_position()).get("type", "")
+#		print("Player is at: ", get_tile_position(), " | Tile type: ", tile_type)  # Debugging
+		if tile_type == "exit_stairs":  # Direct comparison to ensure it's working
 			handle_level_completion()
 
 func get_tile_position() -> Vector2i:

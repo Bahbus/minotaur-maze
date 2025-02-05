@@ -20,6 +20,7 @@ func _ready():
 	place_exit_stairs()
 	connect_room_exits()
 	build_collision_shapes()
+	spawn_player()
 
 func initialize_maze():
 	for i in range(ROWS):
@@ -97,6 +98,7 @@ func place_exit_stairs():
 	if valid_positions.size() > 0:
 		var exit_pos = valid_positions[randi() % valid_positions.size()]
 		set_cell_type(exit_pos, "exit_stairs")
+		print("Exit stairs placed at: ", exit_pos)
 
 ### 🔗 **Pathfinding & Connectivity**
 func connect_room_exits():
@@ -198,6 +200,48 @@ func add_wall_collision(parent: Node, pos: Vector2, extents: Vector2):
 	collision_shape.position = pos
 	parent.add_child(collision_shape)
 
+func find_valid_spawn_position(exit_pos: Vector2i) -> Vector2i:
+	var step_down = [0.75, 0.6, 0.5, 0.35]  # Distance multipliers
+
+	for scaler in step_down:
+		var distance_threshold = int(scaler * max(ROWS, COLS))
+		var valid_positions = []
+
+		# Find all valid path positions that meet the distance requirement
+		for i in range(ROWS):
+			for j in range(COLS):
+				var pos = Vector2i(i, j)
+				if is_type(pos, "path") and pos.distance_to(exit_pos) >= distance_threshold:
+					valid_positions.append(pos)
+
+		# If we found any valid positions, return a random one
+		if valid_positions.size() > 0:
+			return valid_positions[randi() % valid_positions.size()]
+
+	# If no valid position was found at any step, return any path tile as a fallback
+	for i in range(ROWS):
+		for j in range(COLS):
+			var pos = Vector2i(i, j)
+			if is_type(pos, "path"):
+				return pos  # Last resort
+
+	# Default to (0,0) if somehow nothing is found
+	return Vector2i(0, 0)
+
+func spawn_player():
+	var exit_pos = get_exit_stairs_position()  # Find where the stairs are
+	var spawn_pos = find_valid_spawn_position(exit_pos)  # Find a valid player spawn
+
+	# Instantiate and place the player at the **center** of the cell
+	var player = preload("res://src/scenes/player.tscn").instantiate()
+	player.position = Vector2(
+		(spawn_pos.y + 0.5) * CELL_SIZE, 
+		(spawn_pos.x + 0.5) * CELL_SIZE
+	)
+	player.maze = self
+	add_child(player)  # Add player to scene
+	print("Player spawned at ", spawn_pos)
+
 ### ✏️ **Drawing & Visualization**
 func _draw():
 	for i in range(ROWS):
@@ -243,3 +287,11 @@ func get_cell(pos: Vector2i) -> Dictionary:
 func set_cell_type(pos: Vector2i, cell_type: String):
 	if is_within_bounds(pos):
 		maze[pos.y][pos.x]["type"] = cell_type
+
+func get_exit_stairs_position() -> Vector2i:
+	for i in range(ROWS):
+		for j in range(COLS):
+			var pos = Vector2i(j, i)
+			if is_type(pos, "exit_stairs"):
+				return pos  # Return the first exit stairs found
+	return Vector2i(0, 0)  # Default fallback in case no exit is found
