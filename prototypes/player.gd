@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 @export var maze: Node2D  # Assign this in the editor or dynamically in code
 @export var move_speed := 100
-
+var cell_size := 32  # Default, in case maze isn't assigned
 var move_direction := Vector2.ZERO
 
 func _physics_process(_delta):
@@ -24,8 +24,7 @@ func check_exit_condition():
 
 
 func get_tile_position() -> Vector2i:
-	# Force player position to snap to the grid
-	return Vector2i(floor(position.x / 32), floor(position.y / 32))
+	return Vector2i(position.y / cell_size, position.x / cell_size)  # Swap x and y
 
 func handle_level_completion():
 	print("Level Complete!")  # Temporary win state

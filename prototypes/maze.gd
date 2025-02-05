@@ -90,9 +90,10 @@ func place_exit_stairs():
 	var valid_positions = []
 	for i in range(ROWS):
 		for j in range(COLS):
-			var pos = Vector2i(i, j)
+			var pos = Vector2i(j, i)  # Swap x/y here
 			if get_cell(pos).get("visited", false):
 				valid_positions.append(pos)
+
 	if valid_positions.size() > 0:
 		var exit_pos = valid_positions[randi() % valid_positions.size()]
 		set_cell_type(exit_pos, "exit_stairs")
@@ -133,7 +134,7 @@ func calculate_exit_count(room, pos):
 
 func get_room_perimeter(room_cells: Array, pos: Vector2i) -> Array:
 	var perimeter_cells = []
-	var room_positions = room_cells.map(func(cell): return cell + pos)  # Convert to absolute positions
+	var room_positions = room_cells.map(func(cell): return Vector2i(cell.y + pos.y, cell.x + pos.x))
 	for cell in room_positions:
 		for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var neighbor_pos = cell + offset
@@ -167,7 +168,7 @@ func remove_wall_between(pos1: Vector2i, pos2: Vector2i):
 
 func set_wall_state(pos: Vector2i, wall_index: int, state: bool):
 	if is_within_bounds(pos):
-		maze[pos.x][pos.y]["walls"][wall_index] = state
+		maze[pos.y][pos.x]["walls"][wall_index] = state  # Swap x/y
 
 ### 🔨 **Collision Handling**
 func build_collision_shapes():
@@ -224,13 +225,13 @@ func _draw():
 ### 🛠 **Helper Functions**
 func visit(pos: Vector2i):
 	if is_within_bounds(pos):
-		maze[pos.x][pos.y]["visited"] = true
+		maze[pos.y][pos.x]["visited"] = true
 
 func is_type(pos: Vector2i, cell_type: String) -> bool:
 	return get_cell(pos).get("type", "") == cell_type
 
 func is_within_bounds(pos: Vector2i) -> bool:
-	return pos.x >= 0 and pos.x < ROWS and pos.y >= 0 and pos.y < COLS
+	return pos.y >= 0 and pos.y < ROWS and pos.x >= 0 and pos.x < COLS
 
 func get_walls(pos: Vector2i) -> Array:
 	if is_within_bounds(pos):
@@ -238,8 +239,8 @@ func get_walls(pos: Vector2i) -> Array:
 	return [true, true, true, true]  # Default to all walls present if out of bounds
 
 func get_cell(pos: Vector2i) -> Dictionary:
-	return maze[pos.x][pos.y] if is_within_bounds(pos) else {}
+	return maze[pos.y][pos.x] if is_within_bounds(pos) else {}
 
 func set_cell_type(pos: Vector2i, cell_type: String):
 	if is_within_bounds(pos):
-		maze[pos.x][pos.y]["type"] = cell_type
+		maze[pos.y][pos.x]["type"] = cell_type
