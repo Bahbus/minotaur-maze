@@ -16,12 +16,8 @@ func _physics_process(_delta):
 
 func check_exit_condition():
 	if maze:
-		var player_cell = get_tile_position()
-		var tile_type = maze.get_cell(player_cell).get("type", "")
-		print("Player is at: ", player_cell, " | Tile type: ", tile_type)  # Debugging
-		if tile_type == "exit_stairs":
+		if maze.get_cell(get_tile_position()).get("type", "") == "exit_stairs":
 			handle_level_completion()
-
 
 func get_tile_position() -> Vector2i:
 	return Vector2i(position.y / cell_size, position.x / cell_size)  # Swap x and y

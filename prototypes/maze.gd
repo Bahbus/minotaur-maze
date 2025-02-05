@@ -97,7 +97,6 @@ func place_exit_stairs():
 	if valid_positions.size() > 0:
 		var exit_pos = valid_positions[randi() % valid_positions.size()]
 		set_cell_type(exit_pos, "exit_stairs")
-		print("Exit stairs placed at: ", exit_pos)  # Debugging
 
 ### 🔗 **Pathfinding & Connectivity**
 func connect_room_exits():
@@ -134,7 +133,7 @@ func calculate_exit_count(room, pos):
 
 func get_room_perimeter(room_cells: Array, pos: Vector2i) -> Array:
 	var perimeter_cells = []
-	var room_positions = room_cells.map(func(cell): return Vector2i(cell.y + pos.y, cell.x + pos.x))
+	var room_positions = room_cells.map(func(cell): return Vector2i(cell.x + pos.x, cell.y + pos.y))
 	for cell in room_positions:
 		for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var neighbor_pos = cell + offset
