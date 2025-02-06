@@ -1,10 +1,10 @@
 [gd_scene load_steps=4 format=3 uid="uid://dshmj48gfq8ga"]
 
 [ext_resource type="Script" uid="uid://tc461k74dyes" path="res://src/data/minotaur.gd" id="1_3y4g8"]
-
-[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_lomee"]
+[ext_resource type="Texture2D" uid="uid://cvy6g5oii2wmf" path="res://assets/up_arrow.png" id="2_icwhv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nqrdg"]
+size = Vector2(16, 16)
 
 [node name="Minotaur" type="CharacterBody2D"]
 collision_layer = 2
@@ -12,20 +12,19 @@ collision_mask = 5
 script = ExtResource("1_3y4g8")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(1.19209e-07, 7.15256e-07)
-scale = Vector2(20, 20)
-texture = SubResource("PlaceholderTexture2D_lomee")
+scale = Vector2(0.8, 0.8)
+texture = ExtResource("2_icwhv")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_nqrdg")
 
 [node name="VisionArea" type="Area2D" parent="."]
 collision_layer = 8
-collision_mask = 4
+collision_mask = 5
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="VisionArea"]
 polygon = PackedVector2Array(0, 0, -128, -32, -96, -96, -32, -128, 32, -128, 96, -96, 128, -32)
 
-[node name="Polygon2D" type="Polygon2D" parent="VisionArea"]
+[node name="Polygon2D" type="Polygon2D" parent="VisionArea/CollisionPolygon2D"]
 color = Color(1, 0, 0, 0.0980392)
 polygon = PackedVector2Array(0, 0, -128, -32, -96, -96, -32, -128, 32, -128, 96, -96, 128, -32)
