@@ -11,6 +11,9 @@ var maze = []
 var stack = []
 var rooms = []
 
+@export var player: CharacterBody2D
+@export var minotaur: CharacterBody2D
+
 ### 🚀 **Initialization & Setup**
 func _ready():
 	randomize()
@@ -21,6 +24,7 @@ func _ready():
 	connect_room_exits()
 	build_collision_shapes()
 	spawn_player()
+	spawn_minotaur()
 
 func initialize_maze():
 	for i in range(ROWS):
@@ -233,7 +237,7 @@ func spawn_player():
 	var spawn_pos = find_valid_spawn_position(exit_pos)  # Find a valid player spawn
 
 	# Instantiate and place the player at the **center** of the cell
-	var player = preload("res://src/scenes/player.tscn").instantiate()
+	player = preload("res://src/scenes/player.tscn").instantiate()
 	player.position = Vector2(
 		(spawn_pos.y + 0.5) * CELL_SIZE, 
 		(spawn_pos.x + 0.5) * CELL_SIZE
@@ -241,6 +245,25 @@ func spawn_player():
 	player.maze = self
 	add_child(player)  # Add player to scene
 	print("Player spawned at ", spawn_pos)
+
+func spawn_minotaur():
+	if rooms.size() == 0:
+		return  # No rooms available
+	minotaur = preload("res://src/scenes/minotaur.tscn").instantiate()
+	# Pick a random room
+	var room_data = rooms[randi() % rooms.size()]
+	var room = room_data["room"]
+	var room_pos = room_data["position"]
+	# Pick a spawn cell within the room
+	var spawn_cell = room.cells[randi() % room.cells.size()]
+	var abs_spawn_pos = Vector2i(spawn_cell.x + room_pos.x, spawn_cell.y + room_pos.y)
+	# Convert to world position (center of the tile)
+	minotaur.position = Vector2(abs_spawn_pos.y * CELL_SIZE + CELL_SIZE / 2, abs_spawn_pos.x * CELL_SIZE + CELL_SIZE / 2)
+	# Assign maze reference to the Minotaur
+	minotaur.maze = self
+	# Add to the scene
+	add_child(minotaur)
+	print("Minotaur spawned at ", abs_spawn_pos)
 
 ### ✏️ **Drawing & Visualization**
 func _draw():
@@ -295,3 +318,32 @@ func get_exit_stairs_position() -> Vector2i:
 			if is_type(pos, "exit_stairs"):
 				return pos  # Return the first exit stairs found
 	return Vector2i(0, 0)  # Default fallback in case no exit is found
+
+func get_room_at(pos: Vector2i):
+	for room_data in rooms:
+		var room = room_data["room"]
+		var room_pos = room_data["position"]
+		if (pos - room_pos) in room.cells:
+			return room
+	return null  # Not inside a room
+
+func has_wall_between(pos1: Vector2i, pos2: Vector2i) -> bool:
+	if not is_within_bounds(pos1) or not is_within_bounds(pos2):
+		return true  # Out of bounds = assume a wall
+
+	var delta = pos2 - pos1
+	#print("Checking walls between ", pos1, " and ", pos2)
+	if delta == Vector2i(-1, 0):  # Moving UP 
+		#print("UP: ", maze[pos1.y][pos1.x]["walls"][0] or maze[pos2.y][pos2.x]["walls"][2]) 
+		return maze[pos1.y][pos1.x]["walls"][0] or maze[pos2.y][pos2.x]["walls"][2]  # Top of pos1 OR Bottom of pos2
+	elif delta == Vector2i(0, 1):  # Moving RIGHT 
+		#print("RIGHT: ", maze[pos1.y][pos1.x]["walls"][1] or maze[pos2.y][pos2.x]["walls"][3])
+		return maze[pos1.y][pos1.x]["walls"][1] or maze[pos2.y][pos2.x]["walls"][3]  # Right of pos1 OR Left of pos2
+	elif delta == Vector2i(1, 0):  # Moving DOWN 
+		#print("DOWN: ", maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0])
+		return maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0]  # Bottom of pos1 OR Top of pos2
+	elif delta == Vector2i(0, -1):  # Moving LEFT 
+		#print("LEFT: ", maze[pos1.y][pos1.x]["walls"][3] or maze[pos2.y][pos2.x]["walls"][1])
+		return maze[pos1.y][pos1.x]["walls"][3] or maze[pos2.y][pos2.x]["walls"][1]  # Left of pos1 OR Right of pos2
+
+	return true  # If movement isn't valid, assume a wall
