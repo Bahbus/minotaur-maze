@@ -16,6 +16,24 @@ var target_tile: Vector2i = Vector2i(-1, -1)
 var stun_timer = 0.0
 var last_tile: Vector2i = Vector2i(-1, -1)  
 
+func _ready():
+	$VisionArea.connect("body_entered", Callable(self, "_on_vision_area_body_entered"))
+
+func _on_vision_area_body_entered(body):
+	if body is Player:
+		if has_direct_line_of_sight(body.position):
+			print("🔴 Player detected! CHARGE!")
+			last_known_player_pos = maze.player.get_tile_position()
+			current_state = State.CHARGING
+
+func has_direct_line_of_sight(target_position: Vector2) -> bool:
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsRayQueryParameters2D.create(position, target_position, 1)
+	var result = space_state.intersect_ray(query)
+	if result:
+		return result.collider is Player  # ✅ Only return true if it directly hits the player
+	return false
+
 func _physics_process(delta):
 	match current_state:
 		State.IDLE:
@@ -42,10 +60,8 @@ func check_for_player_entry():
 
 ### **🔍 Search for Player (Use Raycasting)**
 func search_for_player():
-	if has_line_of_sight():
-		#last_known_player_pos = maze.player.get_tile_position()
-		print("Charging!")
-		current_state = State.CHARGING
+	if false: #eventually convert this if to handle sound based searching
+		print("Shouldn't see this...")#do nothing for now
 	else:
 		print("No sight, wandering instead.")
 		current_state = State.WANDERING
@@ -156,6 +172,7 @@ func pick_new_wander_target():
 		# ✅ Rotate Minotaur to face movement direction
 		if direction != Vector2i.ZERO:
 			rotation = Vector2(direction.x, direction.y).angle()
+			$VisionArea.rotation = Vector2(direction.x, direction.y).angle()
 
 		set_target_position(target_tile)
 		velocity = Vector2(direction.y, direction.x) * move_speed
@@ -175,6 +192,7 @@ func pick_new_wander_target():
 
 	# ✅ Rotate Minotaur to face new direction
 	rotation = Vector2(direction.x, direction.y).angle()
+	$VisionArea.rotation = Vector2(direction.x, direction.y).angle()
 	#print("New facing direction after rotation:", direction)
 
 ### **📍 Convert Position to Grid Tile (Row, Col)**
@@ -222,38 +240,3 @@ func is_fully_inside_tile() -> bool:
 	var minotaur_center = position
 	# ✅ Allow for small floating point errors
 	return minotaur_center.distance_to(cell_center) <= 1.0
-
-### **👁 Minotaur’s Vision Arc - Detect Player or Walls**
-func has_line_of_sight() -> bool:
-	var space_state = get_world_2d().direct_space_state
-	var minotaur_pos = position
-
-	# ✅ Define Minotaur’s **forward direction** as a Vector2
-	var forward_vector = Vector2(direction.x, direction.y).normalized()
-
-	# ✅ Define vision **arc range** in degrees
-	var vision_arc = 180  # Minotaur sees within a 180-degree cone
-	var ray_count = 10  # Number of rays in the vision arc
-	var max_distance = 8 * maze.CELL_SIZE  # Max LoS range is 5 tiles
-
-	# ✅ Loop through angles from -90° to +90° relative to forward
-	for i in range(ray_count + 1):
-		var angle_offset = deg_to_rad(-vision_arc / 2 + (i * (vision_arc / ray_count)))
-		var ray_direction = forward_vector.rotated(angle_offset)  # Rotate based on angle offset
-		var end_point = minotaur_pos + (ray_direction * max_distance)
-
-		# ✅ Cast Ray to detect walls or player
-		var query = PhysicsRayQueryParameters2D.create(minotaur_pos, end_point, 1)
-		var result = space_state.intersect_ray(query)
-
-		if result:
-			var hit_object = result.collider
-			if hit_object is Player:
-				print("🔴 Player detected in LoS! CHARGE!")
-				last_known_player_pos = maze.player.get_tile_position()
-				return true  # Found the player!
-			elif hit_object.is_in_group("walls"):
-				# ❌ Hit a wall, stop checking further in this direction
-				continue  
-
-	return false  # No player detected in vision arc

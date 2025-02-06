@@ -7,9 +7,10 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_rj735"]
 size = Vector2(10, 10)
 
-[node name="Player" type="CharacterBody2D" node_paths=PackedStringArray("maze")]
+[node name="Player" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("1_cusn3")
-maze = NodePath("")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 position = Vector2(-7.86781e-06, 1.60933e-05)

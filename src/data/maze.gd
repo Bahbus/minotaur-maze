@@ -178,6 +178,8 @@ func set_wall_state(pos: Vector2i, wall_index: int, state: bool):
 ### 🔨 **Collision Handling**
 func build_collision_shapes():
 	var collision_body = StaticBody2D.new()
+	collision_body.set_collision_layer_value(1, true)  # Walls belong to Layer 1
+	collision_body.set_collision_mask_value(1, false)  # Walls detect nothing
 	add_child(collision_body)
 	for i in range(ROWS):
 		for j in range(COLS):
