@@ -20,6 +20,12 @@ config/icon="res://icon.svg"
 window/size/viewport_width=1600
 window/size/viewport_height=900
 
+[layer_names]
+
+2d_physics/layer_1="Maze"
+2d_physics/layer_2="Enemies"
+2d_physics/layer_3="Player"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

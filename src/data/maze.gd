@@ -1,12 +1,24 @@
 extends Node2D
 
-### 🏛 **Maze Configuration**
+# Walls: [top, right, bottom, left]
+# Directions: 
+#   (-1, 0) = left, (1, 0) = right, (0, -1) = up, (0, 1) = down
+
+# For removing walls:
+var wall_map = {
+	Vector2i(-1, 0): [3, 1],  # pos1's left, pos2's right
+	Vector2i(1, 0): [1, 3],   # pos1's right, pos2's left
+	Vector2i(0, -1): [0, 2],  # pos1's top, pos2's bottom
+	Vector2i(0, 1): [2, 0]    # pos1's bottom, pos2's top
+}
+
+# Maze dimensions and cell metrics
 const ROWS = 28
 const COLS = 28
 const CELL_SIZE = 32
 const WALL_THICKNESS = 2
 
-### 🗄 **Data Structures**
+# Maze data structures
 var maze = []
 var stack = []
 var rooms = []
@@ -14,7 +26,6 @@ var rooms = []
 @export var player: CharacterBody2D
 @export var minotaur: CharacterBody2D
 
-### 🚀 **Initialization & Setup**
 func _ready():
 	randomize()
 	initialize_maze()
@@ -26,22 +37,30 @@ func _ready():
 	spawn_player()
 	spawn_minotaur()
 
+# Create the initial array of cells
 func initialize_maze():
-	for i in range(ROWS):
-		var row = []
-		for j in range(COLS):
-			row.append({ "visited": false, "walls": [true, true, true, true], "type": "path" })
-		maze.append(row)
+	for y in range(ROWS):
+		var row_data = []
+		for x in range(COLS):
+			row_data.append({
+				"visited": false,
+				"walls": [true, true, true, true], # [top, right, bottom, left]
+				"type": "path"
+			})
+		maze.append(row_data)
 
-### 🏠 **Room Handling**
+# Randomly place pre-defined rooms
 func place_rooms():
 	var available_rooms = RoomDefinitions.get_rooms()
 	available_rooms.shuffle()
 	for room in available_rooms:
-		var rotation_angle = [0, -90, 90, 180][randi() % 4]  # Random rotation angle
-		var rotated_room = room.rotate(rotation_angle)  # Use Room's rotation method
+		var rotation_angle = [0, -90, 90, 180][randi() % 4]
+		var rotated_room = room.rotate(rotation_angle)
 		for attempt in range(20):
-			var pos = Vector2i(randi() % (ROWS - 3) + 1, randi() % (COLS - 3) + 1)
+			var pos = Vector2i(
+				randi() % (COLS - 3) + 1,
+				randi() % (ROWS - 3) + 1
+			)
 			if can_place_room(rotated_room, pos):
 				apply_room_to_grid(rotated_room, pos)
 				rooms.append({ "room": rotated_room, "position": pos })
@@ -50,15 +69,19 @@ func place_rooms():
 func can_place_room(room, pos: Vector2i) -> bool:
 	for cell in room.cells:
 		var abs_pos = cell + pos
-		if not is_within_bounds(abs_pos) or not is_type(abs_pos, "path") or has_adjacent_type(abs_pos, "room"):
+		if not is_within_bounds(abs_pos):
+			return false
+		if not is_type(abs_pos, "path"):
+			return false
+		if has_adjacent_type(abs_pos, "room"):
 			return false
 	return true
 
-func apply_room_to_grid(room, pos):
+func apply_room_to_grid(room, pos: Vector2i):
 	for cell in room.cells:
 		var abs_pos = cell + pos
 		set_cell_type(abs_pos, "room")
-		# Remove walls between adjacent cells of the same room
+		# Remove walls between adjacent cells within the same room
 		for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var neighbor_pos = abs_pos + offset
 			if is_within_bounds(neighbor_pos) and is_type(neighbor_pos, "room"):
@@ -70,7 +93,7 @@ func has_adjacent_type(pos: Vector2i, cell_type: String) -> bool:
 			return true
 	return false
 
-### 🔀 **Maze Generation**
+# Standard DFS maze generation
 func generate_maze():
 	var current_cell = Vector2i(0, 0)
 	visit(current_cell)
@@ -80,8 +103,10 @@ func generate_maze():
 		var neighbors = []
 		for dir in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
 			var next_cell = current_cell + dir
-			if is_within_bounds(next_cell) and not get_cell(next_cell).get("visited", false) and is_type(next_cell, "path"):
-				neighbors.append(next_cell)
+			if is_within_bounds(next_cell):
+				if not get_cell(next_cell).get("visited", false):
+					if is_type(next_cell, "path"):
+						neighbors.append(next_cell)
 		if neighbors.size() > 0:
 			var next_cell = neighbors[randi() % neighbors.size()]
 			remove_wall_between(current_cell, next_cell)
@@ -90,21 +115,20 @@ func generate_maze():
 		else:
 			stack.pop_back()
 
-### 🚪 **Exit Stairs Placement**
+# Random exit placement
 func place_exit_stairs():
 	var valid_positions = []
-	for i in range(ROWS):
-		for j in range(COLS):
-			var pos = Vector2i(j, i)  # Swap x/y here
+	for y in range(ROWS):
+		for x in range(COLS):
+			var pos = Vector2i(x, y)
 			if get_cell(pos).get("visited", false):
 				valid_positions.append(pos)
-
 	if valid_positions.size() > 0:
 		var exit_pos = valid_positions[randi() % valid_positions.size()]
 		set_cell_type(exit_pos, "exit_stairs")
-		print("Exit stairs placed at: ", exit_pos)
+		print("Exit stairs placed at:", exit_pos)
 
-### 🔗 **Pathfinding & Connectivity**
+# Connect rooms to the maze
 func connect_room_exits():
 	for room_data in rooms:
 		var pos = room_data["position"]
@@ -118,75 +142,84 @@ func connect_room_exits():
 					if is_type(neighbor_pos, "path") and has_valid_maze_connection(neighbor_pos):
 						potential_exits.append({ "exit_pos": neighbor_pos, "room_pos": abs_pos })
 		var exit_count = calculate_exit_count(room, pos)
-		var valid_exits = potential_exits.filter(func(exit): return not is_type(exit["exit_pos"], "room"))
+		var valid_exits = potential_exits.filter(func(e): return not is_type(e["exit_pos"], "room"))
 		valid_exits.shuffle()
-		var selected_exits = select_non_adjacent_exits(valid_exits, exit_count)
-		for exit_data in selected_exits:
+		var chosen = select_non_adjacent_exits(valid_exits, exit_count)
+		for exit_data in chosen:
 			remove_wall_between(exit_data["room_pos"], exit_data["exit_pos"])
 
 func has_valid_maze_connection(pos: Vector2i) -> bool:
-	for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:  # Check if the neighboring paths actually lead somewhere in the main maze
-		var neighbor_pos = pos + offset
-		if is_within_bounds(neighbor_pos) and is_type(neighbor_pos, "path") and get_cell(neighbor_pos).get("visited", false):
-			return true  # It's a valid connection to the maze
+	for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
+		var neighbor = pos + offset
+		if is_within_bounds(neighbor):
+			if is_type(neighbor, "path") and get_cell(neighbor).get("visited", false):
+				return true
 	return false
 
 func calculate_exit_count(room, pos):
 	var min_exits = 2
-	var max_exits = max(2, len(get_room_perimeter(room.cells, pos)) / 2)
-	var area = len(room.cells)
-	return min(min_exits + floor((area - 15) / 10), max_exits) if area >= 15 else min_exits
+	var max_exits = max(2, get_room_perimeter(room.cells, pos).size() / 2)
+	var area = room.cells.size()
+	if area < 15:
+		return min_exits
+	return min(min_exits + floor((area - 15) / 10), max_exits)
 
 func get_room_perimeter(room_cells: Array, pos: Vector2i) -> Array:
 	var perimeter_cells = []
-	var room_positions = room_cells.map(func(cell): return Vector2i(cell.x + pos.x, cell.y + pos.y))
+	var room_positions = []
+	for c in room_cells:
+		room_positions.append(Vector2i(pos.x + c.x, pos.y + c.y))
 	for cell in room_positions:
 		for offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var neighbor_pos = cell + offset
-			if not room_positions.has(neighbor_pos):  # If the neighbor is outside the room, it's a perimeter cell
+			if not room_positions.has(neighbor_pos):
 				perimeter_cells.append(cell)
-				break  # No need to check further, it's already perimeter
+				break
 	return perimeter_cells
 
 func select_non_adjacent_exits(valid_exits, exit_count):
 	valid_exits.shuffle()
-	var selected_exits = []
+	var selected = []
 	for exit_data in valid_exits:
-		if selected_exits.is_empty() or not selected_exits.any(func(e): return abs(e["exit_pos"].x - exit_data["exit_pos"].x) <= 1 and abs(e["exit_pos"].y - exit_data["exit_pos"].y) <= 1):
-			selected_exits.append(exit_data)
-			if selected_exits.size() == exit_count:
+		var no_conflict = true
+		for e in selected:
+			if abs(e["exit_pos"].x - exit_data["exit_pos"].x) <= 1 and abs(e["exit_pos"].y - exit_data["exit_pos"].y) <= 1:
+				no_conflict = false
 				break
-	return selected_exits
+		if no_conflict:
+			selected.append(exit_data)
+			if selected.size() == exit_count:
+				break
+	return selected
 
-### 🚧 **Wall Handling**
+# Remove walls between cells
 func remove_wall_between(pos1: Vector2i, pos2: Vector2i):
-	if not is_within_bounds(pos1) or not is_within_bounds(pos2): return
-	var wall_map = {
-		Vector2i(-1, 0): [0, 2],  # Top wall removed, bottom wall removed in neighbor
-		Vector2i(1, 0): [2, 0],  # Bottom wall removed, top wall removed in neighbor
-		Vector2i(0, -1): [3, 1],  # Left wall removed, right wall removed in neighbor
-		Vector2i(0, 1): [1, 3]   # Right wall removed, left wall removed in neighbor
-	}
-	if wall_map.has(pos2 - pos1):
-		set_wall_state(pos1, wall_map[pos2 - pos1][0], false)
-		set_wall_state(pos2, wall_map[pos2 - pos1][1], false)
+	if not is_within_bounds(pos1) or not is_within_bounds(pos2):
+		return
+	var delta = pos2 - pos1
+	if wall_map.has(delta):
+		var walls_to_remove = wall_map[delta]
+		# walls_to_remove[0] = which wall index to remove for pos1
+		# walls_to_remove[1] = which wall index to remove for pos2
+		set_wall_state(pos1, walls_to_remove[0], false)
+		set_wall_state(pos2, walls_to_remove[1], false)
 
 func set_wall_state(pos: Vector2i, wall_index: int, state: bool):
 	if is_within_bounds(pos):
-		maze[pos.y][pos.x]["walls"][wall_index] = state  # Swap x/y
+		maze[pos.y][pos.x]["walls"][wall_index] = state
 
-### 🔨 **Collision Handling**
+# Build rectangular collision shapes for each active wall
 func build_collision_shapes():
 	var collision_body = StaticBody2D.new()
-	collision_body.set_collision_layer_value(1, true)  # Walls belong to Layer 1
-	collision_body.set_collision_mask_value(1, false)  # Walls detect nothing
+	collision_body.set_collision_layer_value(1, true)
+	collision_body.set_collision_mask_value(1, false)
 	add_child(collision_body)
-	for i in range(ROWS):
-		for j in range(COLS):
-			var cell_pos = Vector2i(i, j)
+	for y in range(ROWS):
+		for x in range(COLS):
+			var cell_pos = Vector2i(x, y)
 			if not is_within_bounds(cell_pos):
 				continue
-			var pos = Vector2(j * CELL_SIZE, i * CELL_SIZE)
+			var base_pos = Vector2(x * CELL_SIZE, y * CELL_SIZE)
 			var walls = get_walls(cell_pos)
 			var wall_definitions = [
 				{ "wall": walls[0], "offset": Vector2(CELL_SIZE / 2, WALL_THICKNESS / 2), "extents": Vector2(CELL_SIZE / 2, WALL_THICKNESS / 2) },
@@ -194,9 +227,9 @@ func build_collision_shapes():
 				{ "wall": walls[2], "offset": Vector2(CELL_SIZE / 2, CELL_SIZE - WALL_THICKNESS / 2), "extents": Vector2(CELL_SIZE / 2, WALL_THICKNESS / 2) },
 				{ "wall": walls[3], "offset": Vector2(WALL_THICKNESS / 2, CELL_SIZE / 2), "extents": Vector2(WALL_THICKNESS / 2, CELL_SIZE / 2) }
 			]
-			for wall in wall_definitions:
-				if wall["wall"]:
-					add_wall_collision(collision_body, pos + wall["offset"], wall["extents"])
+			for w in wall_definitions:
+				if w["wall"]:
+					add_wall_collision(collision_body, base_pos + w["offset"], w["extents"])
 
 func add_wall_collision(parent: Node, pos: Vector2, extents: Vector2):
 	var shape = RectangleShape2D.new()
@@ -207,90 +240,91 @@ func add_wall_collision(parent: Node, pos: Vector2, extents: Vector2):
 	parent.add_child(collision_shape)
 
 func find_valid_spawn_position(exit_pos: Vector2i) -> Vector2i:
-	var step_down = [0.75, 0.6, 0.5, 0.35]  # Distance multipliers
-
+	var step_down = [0.75, 0.6, 0.5, 0.35]
 	for scaler in step_down:
 		var distance_threshold = int(scaler * max(ROWS, COLS))
 		var valid_positions = []
-
-		# Find all valid path positions that meet the distance requirement
-		for i in range(ROWS):
-			for j in range(COLS):
-				var pos = Vector2i(i, j)
-				if is_type(pos, "path") and pos.distance_to(exit_pos) >= distance_threshold:
-					valid_positions.append(pos)
-
-		# If we found any valid positions, return a random one
+		for y in range(ROWS):
+			for x in range(COLS):
+				var pos = Vector2i(x, y)
+				if is_type(pos, "path"):
+					if pos.distance_to(exit_pos) >= distance_threshold:
+						valid_positions.append(pos)
 		if valid_positions.size() > 0:
 			return valid_positions[randi() % valid_positions.size()]
 
-	# If no valid position was found at any step, return any path tile as a fallback
-	for i in range(ROWS):
-		for j in range(COLS):
-			var pos = Vector2i(i, j)
-			if is_type(pos, "path"):
-				return pos  # Last resort
-
-	# Default to (0,0) if somehow nothing is found
+	# Fallback if none found
+	for y in range(ROWS):
+		for x in range(COLS):
+			var fallback_pos = Vector2i(x, y)
+			if is_type(fallback_pos, "path"):
+				return fallback_pos
 	return Vector2i(0, 0)
 
 func spawn_player():
-	var exit_pos = get_exit_stairs_position()  # Find where the stairs are
-	var spawn_pos = find_valid_spawn_position(exit_pos)  # Find a valid player spawn
-
-	# Instantiate and place the player at the **center** of the cell
+	var exit_pos = get_exit_stairs_position()
+	var spawn_pos = find_valid_spawn_position(exit_pos)
 	player = preload("res://src/scenes/player.tscn").instantiate()
 	player.position = Vector2(
-		(spawn_pos.y + 0.5) * CELL_SIZE, 
-		(spawn_pos.x + 0.5) * CELL_SIZE
+		(spawn_pos.x + 0.5) * CELL_SIZE,
+		(spawn_pos.y + 0.5) * CELL_SIZE
 	)
 	player.maze = self
-	add_child(player)  # Add player to scene
-	print("Player spawned at ", spawn_pos)
+	add_child(player)
+	print("Player spawned at:", spawn_pos)
 
 func spawn_minotaur():
-	if rooms.size() == 0:
-		return  # No rooms available
+	if rooms.is_empty():
+		return
 	minotaur = preload("res://src/scenes/minotaur.tscn").instantiate()
-	# Pick a random room
 	var room_data = rooms[randi() % rooms.size()]
 	var room = room_data["room"]
 	var room_pos = room_data["position"]
-	# Pick a spawn cell within the room
 	var spawn_cell = room.cells[randi() % room.cells.size()]
-	var abs_spawn_pos = Vector2i(spawn_cell.x + room_pos.x, spawn_cell.y + room_pos.y)
-	# Convert to world position (center of the tile)
-	minotaur.position = Vector2(abs_spawn_pos.y * CELL_SIZE + CELL_SIZE / 2, abs_spawn_pos.x * CELL_SIZE + CELL_SIZE / 2)
-	# Assign maze reference to the Minotaur
+	var abs_spawn = Vector2i(room_pos.x + spawn_cell.x, room_pos.y + spawn_cell.y)
+	minotaur.position = Vector2(
+		(abs_spawn.x + 0.5) * CELL_SIZE,
+		(abs_spawn.y + 0.5) * CELL_SIZE
+	)
 	minotaur.maze = self
-	# Add to the scene
 	add_child(minotaur)
-	print("Minotaur spawned at ", abs_spawn_pos)
+	print("Minotaur spawned at:", abs_spawn, " | Vantage should be (", (abs_spawn.x + 0.5) * CELL_SIZE, ", ", (abs_spawn.y + 0.5) * CELL_SIZE,")")
 
-### ✏️ **Drawing & Visualization**
 func _draw():
-	for i in range(ROWS):
-		for j in range(COLS):
-			var cell_pos = Vector2i(i, j)
-			var pos = Vector2(j * CELL_SIZE, i * CELL_SIZE)
+	for y in range(ROWS):
+		for x in range(COLS):
+			var cell_pos = Vector2i(x, y)
 			if not is_within_bounds(cell_pos):
 				continue
+			var base_pos = Vector2(x * CELL_SIZE, y * CELL_SIZE)
 			if is_type(cell_pos, "room"):
-				draw_rect(Rect2(pos, Vector2(CELL_SIZE, CELL_SIZE)), Color(0, 0, 1, 0.1), true)
+				draw_rect(
+					Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)),
+					Color(0, 0, 1, 0.1),
+					true
+				)
 			if is_type(cell_pos, "exit_stairs"):
-				draw_rect(Rect2(pos, Vector2(CELL_SIZE, CELL_SIZE)), Color(0, 1, 0, 0.8), true)  # Green exit square
+				draw_rect(
+					Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)),
+					Color(0, 1, 0, 0.8),
+					true
+				)
 			var walls = get_cell(cell_pos).get("walls", [true, true, true, true])
 			var wall_positions = [
-				{ "start": pos, "end": pos + Vector2(CELL_SIZE, 0) },
-				{ "start": pos + Vector2(CELL_SIZE, 0), "end": pos + Vector2(CELL_SIZE, CELL_SIZE) },
-				{ "start": pos + Vector2(0, CELL_SIZE), "end": pos + Vector2(CELL_SIZE, CELL_SIZE) },
-				{ "start": pos, "end": pos + Vector2(0, CELL_SIZE) }
+				{ "start": base_pos, "end": base_pos + Vector2(CELL_SIZE, 0) },
+				{ "start": base_pos + Vector2(CELL_SIZE, 0), "end": base_pos + Vector2(CELL_SIZE, CELL_SIZE) },
+				{ "start": base_pos + Vector2(0, CELL_SIZE), "end": base_pos + Vector2(CELL_SIZE, CELL_SIZE) },
+				{ "start": base_pos, "end": base_pos + Vector2(0, CELL_SIZE) }
 			]
 			for dir in range(4):
 				if walls[dir]:
-					draw_line(wall_positions[dir]["start"], wall_positions[dir]["end"], Color.WHITE, 2)
+					draw_line(
+						wall_positions[dir]["start"],
+						wall_positions[dir]["end"],
+						Color.WHITE,
+						2
+					)
 
-### 🛠 **Helper Functions**
 func visit(pos: Vector2i):
 	if is_within_bounds(pos):
 		maze[pos.y][pos.x]["visited"] = true
@@ -299,53 +333,102 @@ func is_type(pos: Vector2i, cell_type: String) -> bool:
 	return get_cell(pos).get("type", "") == cell_type
 
 func is_within_bounds(pos: Vector2i) -> bool:
-	return pos.y >= 0 and pos.y < ROWS and pos.x >= 0 and pos.x < COLS
+	return pos.x >= 0 and pos.x < COLS and pos.y >= 0 and pos.y < ROWS
 
 func get_walls(pos: Vector2i) -> Array:
 	if is_within_bounds(pos):
 		return get_cell(pos).get("walls", [true, true, true, true])
-	return [true, true, true, true]  # Default to all walls present if out of bounds
+	return [true, true, true, true]
 
 func get_cell(pos: Vector2i) -> Dictionary:
-	return maze[pos.y][pos.x] if is_within_bounds(pos) else {}
+	if is_within_bounds(pos):
+		return maze[pos.y][pos.x]
+	return {}
 
 func set_cell_type(pos: Vector2i, cell_type: String):
 	if is_within_bounds(pos):
 		maze[pos.y][pos.x]["type"] = cell_type
 
 func get_exit_stairs_position() -> Vector2i:
-	for i in range(ROWS):
-		for j in range(COLS):
-			var pos = Vector2i(j, i)
+	for y in range(ROWS):
+		for x in range(COLS):
+			var pos = Vector2i(x, y)
 			if is_type(pos, "exit_stairs"):
-				return pos  # Return the first exit stairs found
-	return Vector2i(0, 0)  # Default fallback in case no exit is found
+				return pos
+	return Vector2i(0, 0)
 
 func get_room_at(pos: Vector2i):
-	for room_data in rooms:
-		var room = room_data["room"]
-		var room_pos = room_data["position"]
+	for rd in rooms:
+		var room = rd["room"]
+		var room_pos = rd["position"]
 		if (pos - room_pos) in room.cells:
 			return room
-	return null  # Not inside a room
+	return null
 
 func has_wall_between(pos1: Vector2i, pos2: Vector2i) -> bool:
 	if not is_within_bounds(pos1) or not is_within_bounds(pos2):
-		return true  # Out of bounds = assume a wall
-
+		return true
 	var delta = pos2 - pos1
-	#print("Checking walls between ", pos1, " and ", pos2)
-	if delta == Vector2i(-1, 0):  # Moving UP 
-		#print("UP: ", maze[pos1.y][pos1.x]["walls"][0] or maze[pos2.y][pos2.x]["walls"][2]) 
-		return maze[pos1.y][pos1.x]["walls"][0] or maze[pos2.y][pos2.x]["walls"][2]  # Top of pos1 OR Bottom of pos2
-	elif delta == Vector2i(0, 1):  # Moving RIGHT 
-		#print("RIGHT: ", maze[pos1.y][pos1.x]["walls"][1] or maze[pos2.y][pos2.x]["walls"][3])
-		return maze[pos1.y][pos1.x]["walls"][1] or maze[pos2.y][pos2.x]["walls"][3]  # Right of pos1 OR Left of pos2
-	elif delta == Vector2i(1, 0):  # Moving DOWN 
-		#print("DOWN: ", maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0])
-		return maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0]  # Bottom of pos1 OR Top of pos2
-	elif delta == Vector2i(0, -1):  # Moving LEFT 
-		#print("LEFT: ", maze[pos1.y][pos1.x]["walls"][3] or maze[pos2.y][pos2.x]["walls"][1])
-		return maze[pos1.y][pos1.x]["walls"][3] or maze[pos2.y][pos2.x]["walls"][1]  # Left of pos1 OR Right of pos2
+	match delta:
+		Vector2i(-1, 0):
+			# pos1's left or pos2's right
+			return maze[pos1.y][pos1.x]["walls"][3] or maze[pos2.y][pos2.x]["walls"][1]
+		Vector2i(1, 0):
+			# pos1's right or pos2's left
+			return maze[pos1.y][pos1.x]["walls"][1] or maze[pos2.y][pos2.x]["walls"][3]
+		Vector2i(0, -1):
+			# pos1's top or pos2's bottom
+			return maze[pos1.y][pos1.x]["walls"][0] or maze[pos2.y][pos2.x]["walls"][2]
+		Vector2i(0, 1):
+			# pos1's bottom or pos2's top
+			return maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0]
+		_:
+			return true
 
-	return true  # If movement isn't valid, assume a wall
+func gather_maze_edges() -> Array:
+	var edge_map := {}
+	for y in range(ROWS):
+		for x in range(COLS):
+			var cell_pos = Vector2i(x, y)
+			if not is_within_bounds(cell_pos):
+				continue
+			var cell_top_left = Vector2(x * CELL_SIZE, y * CELL_SIZE)
+			var walls = get_walls(cell_pos)
+
+			# Top wall
+			if walls[0]:
+				var p1 = cell_top_left
+				var p2 = cell_top_left + Vector2(CELL_SIZE, 0)
+				add_edge(edge_map, p1, p2)
+
+			# Right wall
+			if walls[1]:
+				var p3 = cell_top_left + Vector2(CELL_SIZE, 0)
+				var p4 = cell_top_left + Vector2(CELL_SIZE, CELL_SIZE)
+				add_edge(edge_map, p3, p4)
+
+			# Bottom wall
+			if walls[2]:
+				var p5 = cell_top_left + Vector2(0, CELL_SIZE)
+				var p6 = cell_top_left + Vector2(CELL_SIZE, CELL_SIZE)
+				add_edge(edge_map, p5, p6)
+
+			# Left wall
+			if walls[3]:
+				var p7 = cell_top_left
+				var p8 = cell_top_left + Vector2(0, CELL_SIZE)
+				add_edge(edge_map, p7, p8)
+
+	var edges = []
+	for key in edge_map:
+		edges.append(edge_map[key])
+	return edges
+
+func add_edge(edge_map: Dictionary, p1: Vector2, p2: Vector2) -> void:
+	if p2 < p1:
+		var temp = p1
+		p1 = p2
+		p2 = temp
+	var key = "%s_%s_%s_%s" % [str(p1.x), str(p1.y), str(p2.x), str(p2.y)]
+	if not edge_map.has(key):
+		edge_map[key] = { "p1": p1, "p2": p2 }
