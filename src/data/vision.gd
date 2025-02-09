@@ -8,6 +8,10 @@ var fov = 120
 var vision_angle = deg_to_rad(fov)  # Minotaur's field of view
 var max_length = 6 * 32  # Vision range (6 tiles)
 var num_rays = fov / 3  # Number of rays cast for accuracy
+var last_position = Vector2.ZERO
+var last_rotation = 0.0
+var cached_player_polygon = PackedVector2Array()
+var last_player_shape_id = 0
 
 func _ready():
 	if polygon:
@@ -16,18 +20,39 @@ func _ready():
 func _process(delta):
 	if not minotaur or not minotaur.maze:
 		return
+	# ✅ Only update vision if the Minotaur or Player moved
+	if global_position != last_position or rotation != last_rotation or minotaur.maze.player.position != last_position:
+		last_position = global_position
+		last_rotation = rotation
+		update_vision()
 
-	# **Step 1: Gather walls**
+func update_vision():
 	var edges = minotaur.maze.gather_maze_edges()
-
-	# **Step 2: Compute vision polygon**
 	var poly = build_vision_polygon(edges)
-
-	# **Step 3: Assign polygon to CollisionPolygon2D and Polygon2D**
-	if poly.size() > 2:
-		collision_polygon.polygon = poly
-		polygon.polygon = poly
 	
+	if poly.size() > 2:
+		if Geometry2D.is_polygon_clockwise(poly):
+			poly.reverse()
+
+		# ✅ Compute polygon area manually
+		var area = get_polygon_area(poly)
+		if area > 1.0:  # ✅ Ignore nearly-flat polygons
+			collision_polygon.polygon = poly
+			polygon.polygon = poly
+		else:
+			print("⚠ Skipping bad polygon with area:", area, "Points:", poly)
+
+func get_polygon_area(poly: PackedVector2Array) -> float:
+	if poly.size() < 3:
+		return 0.0  # ✅ Invalid polygons have no area
+
+	var area = 0.0
+	for i in range(poly.size()):
+		var p1 = poly[i]
+		var p2 = poly[(i + 1) % poly.size()]  # ✅ Wrap around to first point
+		area += (p1.x * p2.y) - (p2.x * p1.y)
+	return abs(area) / 2.0  # ✅ Shoelace theorem
+
 ### **🎯 Build Properly Ordered Vision Polygon**
 func build_vision_polygon(edges: Array) -> PackedVector2Array:
 	var vantage = global_position
@@ -83,14 +108,17 @@ func cast_physics_ray(start_pos: Vector2, angle: float) -> Vector2:
 	return end_pos
 
 func clean_polygon(poly: PackedVector2Array) -> PackedVector2Array:
-	var cleaned_poly = PackedVector2Array()
 	if poly.size() < 3:
 		return poly
+	
+	var seen = {}  # Hash table for quick lookup
+	var cleaned_poly = PackedVector2Array()
 
-	cleaned_poly.append(poly[0])
-	for i in range(1, poly.size()):
-		if poly[i].distance_to(cleaned_poly[-1]) > 1.0:
-			cleaned_poly.append(poly[i])
+	for p in poly:
+		var key = p.snapped(Vector2(1, 1))  # ✅ More precise rounding
+		if key not in seen:
+			seen[key] = true
+			cleaned_poly.append(p)
 
 	return cleaned_poly
 
@@ -115,25 +143,12 @@ func is_touching_player() -> bool:
 
 	# 🔍 **Check if polygons are touching**
 	var touching = Geometry2D.intersect_polygons(vision_global, player_global)
-	
-	if touching.size() > 0:
-		print("🔥 Minotaur and Player polygons are touching!")
+	var crossing = Geometry2D.intersect_polyline_with_polygon(player_global, vision_global)
+
+	if touching.size() > 0 or crossing.size() > 0:
 		return true
-	
+
 	return false
-	
-func filter_forward_facing_edges(edges: Array) -> Array:
-	var filtered_edges = []
-	var forward_direction = Vector2.RIGHT.rotated(minotaur.rotation)  # Minotaur's forward direction
-	
-	for edge in edges:
-		var edge_dir = (edge[1] - edge[0]).normalized()
-		var dot_product = forward_direction.dot(edge_dir)  # How much the edge aligns with forward
-
-		if dot_product > 0:  # ✅ Only keep edges in the forward-facing direction
-			filtered_edges.append(edge)
-
-	return filtered_edges
 
 func get_player_collision_polygon() -> PackedVector2Array:
 	var player = minotaur.maze.player
@@ -144,11 +159,15 @@ func get_player_collision_polygon() -> PackedVector2Array:
 	if not collision_shape or not collision_shape.shape:
 		return PackedVector2Array()
 
+	# ✅ Check if shape changed
+	if collision_shape.shape.get_instance_id() == last_player_shape_id:
+		return cached_player_polygon
+
+	last_player_shape_id = collision_shape.shape.get_instance_id()
 	var polygon = PackedVector2Array()
 
 	if collision_shape.shape is ConvexPolygonShape2D:
-		for point in collision_shape.shape.points:
-			polygon.append(point)  # Keep in local space for now
+		polygon.append_array(collision_shape.shape.points)
 
 	elif collision_shape.shape is RectangleShape2D:
 		var extents = collision_shape.shape.extents
@@ -157,6 +176,7 @@ func get_player_collision_polygon() -> PackedVector2Array:
 		polygon.append(Vector2(extents.x, extents.y))
 		polygon.append(Vector2(-extents.x, extents.y))
 
+	cached_player_polygon = polygon
 	return polygon
 
 func get_edges(polygon: PackedVector2Array, offset: Vector2) -> Array:
