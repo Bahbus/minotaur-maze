@@ -10,6 +10,7 @@ size = Vector2(16, 16)
 [node name="Minotaur" type="CharacterBody2D"]
 collision_layer = 2
 collision_mask = 5
+motion_mode = 1
 script = ExtResource("1_3y4g8")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
@@ -22,9 +23,11 @@ shape = SubResource("RectangleShape2D_nqrdg")
 
 [node name="Vision" type="Area2D" parent="."]
 collision_layer = 8
-collision_mask = 4
+collision_mask = 5
 script = ExtResource("3_layxn")
+
+[node name="Polygon2D" type="Polygon2D" parent="Vision"]
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Vision"]
 
-[node name="Polygon2D" type="Polygon2D" parent="Vision"]
+[connection signal="body_entered" from="Vision" to="." method="_on_vision_body_entered"]

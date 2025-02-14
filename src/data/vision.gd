@@ -4,204 +4,140 @@ extends Area2D
 @onready var polygon = $Polygon2D
 @onready var minotaur = get_parent() as Minotaur
 
-var fov = 120
-var vision_angle = deg_to_rad(fov)  # Minotaur's field of view
-var max_length = 6 * 32  # Vision range (6 tiles)
-var num_rays = fov / 3  # Number of rays cast for accuracy
-var last_position = Vector2.ZERO
-var last_rotation = 0.0
-var cached_player_polygon = PackedVector2Array()
-var last_player_shape_id = 0
+var max_radius = 6  # Vision range in tiles
+var tile_size = 32  # Each tile is 32x32 pixels
+var num_rays = 120  # Number of rays in the arc
+var vision_angle = deg_to_rad(120)  # 120-degree vision cone
+var last_position
+var last_rotation
+
+# Vision data
+var visible_points = []  # Stores vision edges
 
 func _ready():
 	if polygon:
 		polygon.color = Color(1, 0, 0, 0.15)
+		polygon.antialiased = true
+		collision_polygon.build_mode = 0
 
-func _process(delta):
+func _physics_process(_delta):
 	if not minotaur or not minotaur.maze:
 		return
-	# ✅ Only update vision if the Minotaur or Player moved
-	if global_position != last_position or rotation != last_rotation or minotaur.maze.player.position != last_position:
-		last_position = global_position
-		last_rotation = rotation
+
+	# ✅ Update vision only when Minotaur moves or rotates
+	if minotaur.global_position != last_position or minotaur.rotation != last_rotation:
+		last_position = minotaur.global_position
+		last_rotation = minotaur.rotation
 		update_vision()
 
 func update_vision():
-	var edges = minotaur.maze.gather_maze_edges()
-	var poly = build_vision_polygon(edges)
-	
+	visible_points.clear()
+
+	# Generate vision polygon
+	var poly = generate_vision_polygon()
 	if poly.size() > 2:
-		if Geometry2D.is_polygon_clockwise(poly):
-			poly.reverse()
+		# ✅ Convert to local space before assigning!
+		for i in range(poly.size()):
+			poly[i] = to_local(poly[i]).snapped(Vector2(0.1, 0.1))
+		polygon.polygon = poly
+		collision_polygon.polygon = polygon.polygon
 
-		# ✅ Compute polygon area manually
-		var area = get_polygon_area(poly)
-		if area > 1.0:  # ✅ Ignore nearly-flat polygons
-			collision_polygon.polygon = poly
-			polygon.polygon = poly
-		else:
-			print("⚠ Skipping bad polygon with area:", area, "Points:", poly)
+### **📌 Generate Vision Polygon Based on Minotaur Rotation**
+func generate_vision_polygon() -> PackedVector2Array:
+	compute_vision_rays()
 
-func get_polygon_area(poly: PackedVector2Array) -> float:
-	if poly.size() < 3:
-		return 0.0  # ✅ Invalid polygons have no area
+	# Sort points counterclockwise without relying on a center
+	var sorted_poly = sort_ccw_by_angle(visible_points)
+	return clean_polygon(sorted_poly)
 
-	var area = 0.0
-	for i in range(poly.size()):
-		var p1 = poly[i]
-		var p2 = poly[(i + 1) % poly.size()]  # ✅ Wrap around to first point
-		area += (p1.x * p2.y) - (p2.x * p1.y)
-	return abs(area) / 2.0  # ✅ Shoelace theorem
+### **📌 Compute Vision Rays within 120-degree Arc**
+func compute_vision_rays():
+	var center = minotaur.global_position
+	var max_distance = max_radius * tile_size
+	var base_angle = normalize_angle(minotaur.rotation)
+	var half_arc = vision_angle / 2.0
 
-### **🎯 Build Properly Ordered Vision Polygon**
-func build_vision_polygon(edges: Array) -> PackedVector2Array:
-	var vantage = global_position
-	var base_angle = minotaur.rotation
-	var half_cone = vision_angle / 2.0
+	var start_angle = normalize_angle(base_angle - half_arc)
+	var end_angle = normalize_angle(base_angle + half_arc)
 
-	var angle_points = []
+	# Ensure correct order when crossing 0°
+	if start_angle > end_angle:
+		end_angle += TAU  # Prevent wrapping issues
 
-	# **Step 1: Cast rays in the vision cone**
 	for i in range(num_rays + 1):
 		var fraction = float(i) / float(num_rays)
-		var current_angle = base_angle - half_cone + (fraction * vision_angle)
+		var angle = normalize_angle(start_angle + fraction * (end_angle - start_angle))
+		var direction = Vector2(cos(angle), sin(angle))
+		var ray_end = cast_vision_ray(center, direction, max_distance)
+		visible_points.append({"angle": angle, "pos": ray_end})
 
-		var hit_pos = cast_physics_ray(vantage, current_angle)
-		angle_points.append({ "angle": current_angle, "pos": hit_pos })
+	# Ensure the Minotaur itself is part of the polygon
+	visible_points.append({"angle": start_angle, "pos": center})
 
-	# **Step 2: Cast rays towards key wall points**
-	for edge in edges:
-		for point in [edge["p1"], edge["p2"]]:
-			var angle = (point - vantage).angle()
-			if abs(fmod(angle - base_angle + PI, TAU) - PI) <= half_cone:
-				var hit_pos = cast_physics_ray(vantage, angle)
-				angle_points.append({ "angle": angle, "pos": hit_pos })
-
-	# **Step 3: Sort by angle**
-	angle_points.sort_custom(_sort_by_angle)
-
-	# **Step 4: Construct the polygon**
-	var final_poly = PackedVector2Array()
-	final_poly.append(Vector2.ZERO)  # Apex (Minotaur position)
-
-	for data in angle_points:
-		final_poly.append(to_local(data["pos"]))
-
-	# **Step 5: Cleanup overlapping points**
-	return clean_polygon(final_poly)
-
-### **🛠 Helper Functions**
-func _sort_by_angle(a, b) -> bool:
-	return a["angle"] < b["angle"]
-
-func cast_physics_ray(start_pos: Vector2, angle: float) -> Vector2:
-	var ray_dir = Vector2(cos(angle), sin(angle))
-	var end_pos = start_pos + ray_dir * max_length
-
+### **📌 Cast Vision Ray Until Collision or Max Distance**
+func cast_vision_ray(start: Vector2, direction: Vector2, max_distance: float) -> Vector2:
 	var space_state = get_world_2d().direct_space_state
-	var query = PhysicsRayQueryParameters2D.create(start_pos, end_pos)
-	query.exclude = [minotaur]
-
+	var end_pos = start + direction * max_distance
+	var query = PhysicsRayQueryParameters2D.create(start, end_pos)
+	query.exclude = [minotaur, minotaur.player]
 	var result = space_state.intersect_ray(query)
 	if result:
-		return result.position
+		var hit_pos = result.position
+		var hit_dir = (hit_pos - start).normalized()
+		return hit_pos - hit_dir * 1.0  # Offset by 1 pixel inward
 	return end_pos
 
+### **📌 Sort Points Counter-Clockwise By Angle**
+func sort_ccw_by_angle(points: Array) -> PackedVector2Array:
+	if points.size() < 3:
+		return PackedVector2Array(points.map(func(p): return p["pos"]))
+
+	# Sort based on angles directly, handling wrap-around cases
+	points.sort_custom(func(a, b):
+		return normalize_angle(a["angle"] - minotaur.rotation) < normalize_angle(b["angle"] - minotaur.rotation)
+	)
+
+	return PackedVector2Array(points.map(func(p): return p["pos"]))
+
+### **📌 Remove Duplicate & Collinear Points**
 func clean_polygon(poly: PackedVector2Array) -> PackedVector2Array:
 	if poly.size() < 3:
 		return poly
-	
-	var seen = {}  # Hash table for quick lookup
-	var cleaned_poly = PackedVector2Array()
 
+	var unique_poly = PackedVector2Array()
+	var epsilon = 0.1  # Adjust for floating point precision
+
+	# Step 1: Remove duplicate or near-identical points
 	for p in poly:
-		var key = p.snapped(Vector2(1, 1))  # ✅ More precise rounding
-		if key not in seen:
-			seen[key] = true
-			cleaned_poly.append(p)
+		var is_duplicate = false
+		for up in unique_poly:
+			if p.distance_to(up) < epsilon:
+				is_duplicate = true
+				break
+		if not is_duplicate:
+			unique_poly.append(p)
+
+	# Step 2: Remove collinear points
+	var cleaned_poly = PackedVector2Array()
+	cleaned_poly.append(unique_poly[0])  # Always keep first point
+
+	for i in range(1, unique_poly.size() - 1):
+		var prev = unique_poly[i - 1]
+		var curr = unique_poly[i]
+		var next = unique_poly[i + 1]
+
+		if not is_collinear(prev, curr, next):
+			cleaned_poly.append(curr)
+
+	if not is_collinear(unique_poly[unique_poly.size() - 2], unique_poly[unique_poly.size() - 1], unique_poly[0]):
+		cleaned_poly.append(unique_poly[unique_poly.size() - 1])
 
 	return cleaned_poly
 
-func is_touching_player() -> bool:
-	if not minotaur or not minotaur.maze or not minotaur.maze.player:
-		return false
-	
-	var player_polygon = get_player_collision_polygon()
-	var vision_polygon = collision_polygon.polygon
+### **📌 Check if Three Points Are Collinear**
+func is_collinear(a: Vector2, b: Vector2, c: Vector2) -> bool:
+	return abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) < 0.1
 
-	if player_polygon.is_empty() or vision_polygon.is_empty():
-		return false
-
-	# Convert to global positions
-	var vision_global = []
-	for point in vision_polygon:
-		vision_global.append(to_global(point))
-
-	var player_global = []
-	for point in player_polygon:
-		player_global.append(minotaur.maze.player.to_global(point))
-
-	# 🔍 **Check if polygons are touching**
-	var touching = Geometry2D.intersect_polygons(vision_global, player_global)
-	var crossing = Geometry2D.intersect_polyline_with_polygon(player_global, vision_global)
-
-	if touching.size() > 0 or crossing.size() > 0:
-		return true
-
-	return false
-
-func get_player_collision_polygon() -> PackedVector2Array:
-	var player = minotaur.maze.player
-	if not player:
-		return PackedVector2Array()
-
-	var collision_shape = player.get_node_or_null("CollisionShape2D")
-	if not collision_shape or not collision_shape.shape:
-		return PackedVector2Array()
-
-	# ✅ Check if shape changed
-	if collision_shape.shape.get_instance_id() == last_player_shape_id:
-		return cached_player_polygon
-
-	last_player_shape_id = collision_shape.shape.get_instance_id()
-	var polygon = PackedVector2Array()
-
-	if collision_shape.shape is ConvexPolygonShape2D:
-		polygon.append_array(collision_shape.shape.points)
-
-	elif collision_shape.shape is RectangleShape2D:
-		var extents = collision_shape.shape.extents
-		polygon.append(Vector2(-extents.x, -extents.y))
-		polygon.append(Vector2(extents.x, -extents.y))
-		polygon.append(Vector2(extents.x, extents.y))
-		polygon.append(Vector2(-extents.x, extents.y))
-
-	cached_player_polygon = polygon
-	return polygon
-
-func get_edges(polygon: PackedVector2Array, offset: Vector2) -> Array:
-	var edges = []
-	if polygon.size() < 2:
-		return edges
-
-	for i in range(polygon.size()):
-		var p1 = offset + polygon[i]
-		var p2 = offset + polygon[(i + 1) % polygon.size()]  # Wrap-around for last edge
-		edges.append([p1, p2])
-
-	return edges
-
-func intersect_ray_segment(a1: Vector2, a2: Vector2, b1: Vector2, b2: Vector2) -> bool:
-	# Ray-line segment intersection formula
-	var r = a2 - a1
-	var s = b2 - b1
-	var denominator = r.x * s.y - r.y * s.x
-
-	if abs(denominator) < 0.00001:
-		return false  # Parallel or collinear
-
-	var u = ((b1.x - a1.x) * r.y - (b1.y - a1.y) * r.x) / denominator
-	var t = ((b1.x - a1.x) * s.y - (b1.y - a1.y) * s.x) / denominator
-
-	# Ensure the intersection occurs **on both segments**
-	return 0.0 <= t and t <= 1.0 and 0.0 <= u and u <= 1.0
+### **📌 Normalize Angle to 0 - TAU**
+func normalize_angle(angle: float) -> float:
+	return fmod(angle + TAU, TAU)

@@ -2,54 +2,42 @@ extends CharacterBody2D
 
 class_name Minotaur
 
-@onready var vision = $Vision
-@onready var vision_collision = $Vision/CollisionPolygon2D
+# Movement and state-related properties
+@export var move_speed: int = 40  # Speed while wandering or searching
+@export var charge_speed: int = 100  # Speed when charging at the player
+@export var stun_duration: float = 1.5  # Duration of stun state in seconds
+@export var maze: Node2D  # Reference to the maze
 
+# Node references
+@onready var vision: Area2D = $Vision  # Vision detection node
+@onready var half_cell: Vector2 = Vector2(maze.CELL_SIZE * 0.5, maze.CELL_SIZE * 0.5)
+@onready var wall_offset: Vector2 = Vector2(maze.WALL_THICKNESS * 0.5, maze.WALL_THICKNESS * 0.5)
+@onready var player: Node2D = maze.player  # Reference to the player
 
-@export var move_speed: int = 40
-@export var charge_speed: int = 120
-@export var stun_duration: float = 1.5
-@export var maze: Node2D
+# Minotaur state management
+enum State { IDLE, SEARCHING, CHARGING, WANDERING, STUNNED, ROTATING }
+var current_state: int = State.SEARCHING  # Default starting state
+var previous_state: int = -1  # Stores the previous state before rotating
 
-enum State { IDLE, SEARCHING, CHARGING, WANDERING, STUNNED }
-var current_state = State.IDLE
-
-# direction.x < 0 => left, direction.x > 0 => right
-# direction.y < 0 => up,   direction.y > 0 => down
-var direction: Vector2i = Vector2i(1, 0)
-
-var last_known_player_pos: Vector2i = Vector2i(-1, -1)
-var target_tile: Vector2i = Vector2i(-1, -1)
-var stun_timer = 0.0
-var last_tile: Vector2i = Vector2i(-1, -1)
+# Movement and rotation tracking
+var charge_direction: Vector2 = Vector2.ZERO  # Direction when charging
+var direction: Vector2 = Vector2.RIGHT  # Default direction the Minotaur faces
+var last_known_player_pos: Vector2 = Vector2(-1, -1)  # Last seen position of the player
+var target_tile: Vector2i = Vector2i(-1, -1)  # Tile the Minotaur is moving towards
+var last_tile: Vector2i = Vector2i(-1, -1)  # Stores last tile to avoid backtracking
+var stun_timer: float = 0.0  # Timer for stun duration
+var rotation_speed: float = 5.0
+var rotation_threshold: float = 0.05  # Allowed deviation before snapping rotation
+var center_threshold: float = 0.25 # Allowed distance before snapping
+var target_rotation: float = 0.0  # Desired rotation angle
 
 func _ready():
 	if not vision:
 		push_error("❌ ERROR: Vision node not found!")
-		set_physics_process(false) # Disable physics if Vision is missing
-		return
-	vision.body_entered.connect(_on_vision_body_entered)
-
-
-func _on_vision_body_entered(body):
-	if current_state == State.IDLE:
-		return
-	if body is Player:
-		#print("⚡ Minotaur sees the player!")
-		last_known_player_pos = maze.player.get_tile_position()
-		current_state = State.CHARGING
-
-func _process(delta):
-	if current_state in [State.IDLE, State.STUNNED]:
-		return # Don't detect vision if idle or stunned
-	var player = maze.player
-	if check_vision_collision_with_player(player):
-		last_known_player_pos = player.get_tile_position()
-		current_state = State.CHARGING
-	
-	update_rotation()
+		set_physics_process(false)  # Disable physics processing if vision is missing
 
 func _physics_process(delta):
+	# Handle state-based behavior
 	match current_state:
 		State.IDLE:
 			check_for_player_entry()
@@ -57,133 +45,179 @@ func _physics_process(delta):
 		State.SEARCHING:
 			search_for_player()
 		State.CHARGING:
-			charge_at_player(delta)
+			charge_at_player()
 		State.WANDERING:
-			wander(delta)
+			wander()
 		State.STUNNED:
 			handle_stun(delta)
-	
-	# Always apply movement at the end
+		State.ROTATING:
+			rotate_toward_target(delta)
+			return
+
 	move_and_slide()
 	if current_state == State.CHARGING:
-		for i in range(get_slide_collision_count()):
-			var coll = get_slide_collision(i)
-			if coll:
-				var collider = coll.get_collider()
-				if collider is Player:
-					print("~~~~~~Player caught~~~~~~")
-					# Handle player caught
-				else:
-					print("Minotaur stunned!")
-					reset_state()
-					current_state = State.STUNNED
-					stun_timer = stun_duration
+		check_collisions()
 
-func check_vision_collision_with_player(player: Node2D) -> bool:
-	return vision and vision.is_touching_player() and player
-
-func check_for_player_entry():
-	var p_tile = maze.player.get_tile_position()
-	var player_room = maze.get_room_at(p_tile)
-	var mino_room = maze.get_room_at(get_tile_position())
-	if player_room != null and player_room == mino_room:
-		print("Minotaur Activated!")
-		last_known_player_pos = p_tile
-		current_state = State.SEARCHING
-
-func search_for_player():
-	print("No sight, switching to wander.")
-	current_state = State.WANDERING
-
-func charge_at_player(delta):
-	if direction == Vector2i.ZERO:
-		if last_known_player_pos != Vector2i(-1, -1):
-			print("Charging!")
-			direction = (last_known_player_pos - get_tile_position()).sign()
-	if direction == Vector2i.ZERO:
-		print("❌ Failed to determine charge direction! Resetting...")
-		reset_state()
-		current_state = State.WANDERING
+# Switches state to charging when player enters vision range
+func _on_vision_body_entered(body: Node2D) -> void:
+	if current_state in [State.IDLE, State.STUNNED, State.CHARGING]: #Ignore vision in these states
 		return
-	
-	velocity = Vector2(direction).normalized() * charge_speed
+	if body is Player:
+		if last_known_player_pos != body.position:
+			last_known_player_pos = body.position
+		set_state(State.CHARGING)
 
+# Handles gradual rotation toward a target direction
+func rotate_toward_target(delta):
+	rotation = normalize_angle(lerp_angle(rotation, target_rotation, rotation_speed * delta))
+	if is_facing_target():
+		rotation = target_rotation  # Snap rotation once close
+		set_state(previous_state if previous_state != -1 else State.SEARCHING)
+		previous_state = -1
+
+# Checks if the player enters the same room as the Minotaur
+func check_for_player_entry():
+	if maze.get_room_at(player.get_tile_position()) == maze.get_room_at(get_tile_position()):
+		set_state(State.SEARCHING)
+
+# Handles searching state when the Minotaur loses sight of the player
+func search_for_player():
+	set_state(State.WANDERING)
+
+# Handles charging behavior towards last known player position
+func charge_at_player():
+	if charge_direction == Vector2.ZERO and last_known_player_pos != Vector2(-1, -1):
+		charge_direction = (last_known_player_pos - position).normalized()
+		update_direction(charge_direction)
+		return
+
+	if current_state == State.ROTATING:
+		return
+
+	if charge_direction == Vector2.ZERO:
+		reset_state()
+		set_state(State.WANDERING)
+		return
+
+	velocity = charge_direction * charge_speed
+
+# Handles stun state, reducing timer until recovery
 func handle_stun(delta):
 	stun_timer -= delta
-	if stun_timer <= 0:
-		if is_at_target_tile(true):
-			reset_state()
-			print("Minotaur recovered from stun!")
-			pick_new_wander_target()
-			current_state = State.WANDERING
+	if stun_timer <= 0 and is_at_target_tile(true):
+		set_state(State.SEARCHING)
 
-func wander(delta):
+# Handles wandering behavior when searching for the player
+func wander():
 	if target_tile != Vector2i(-1, -1):
 		if not is_at_target_tile():
 			return
-		else:
-			target_tile = Vector2i(-1, -1)
-
+		target_tile = Vector2i(-1, -1)
 	pick_new_wander_target()
 
+# Selects a new random valid tile to move towards
 func pick_new_wander_target():
 	var current_tile = get_tile_position()
-	var move_directions = [
-		direction,
-		Vector2i(direction.y, -direction.x),  # rotate left
-		Vector2i(-direction.y, direction.x)   # rotate right
-	]
-	move_directions.shuffle() # Randomizes directions
+	var move_directions = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
+	move_directions.shuffle()
 
-	for dir_vec in move_directions:
-		var new_tile = current_tile + dir_vec
+	for dir in move_directions:
+		var new_tile = current_tile + Vector2i(dir)
 		if maze.is_within_bounds(new_tile) and not is_colliding_with_wall(new_tile) and new_tile != last_tile:
 			target_tile = new_tile
 			last_tile = current_tile
-			break  # 🚀 Exit loop after finding a valid move
+			update_direction(dir)
+			velocity = dir * move_speed
+			return
 
-	# ✅ Ensure Minotaur always moves
-	if target_tile != Vector2i(-1, -1):
-		direction = (target_tile - current_tile).sign()
-		velocity = Vector2(direction).normalized() * move_speed
-	else:
-		print("⚠ Minotaur stuck at ", current_tile, " - No valid moves found! Facing: ", direction, " | Rotating...")
-		last_tile = current_tile
-		direction = [Vector2i(-direction.y, direction.x), Vector2i(direction.y, -direction.x)].pick_random()
-
-
-func get_tile_position() -> Vector2i:
-	# x = column, y = row => tile.x = floor(position.x / CELL_SIZE), tile.y = floor(position.y / CELL_SIZE)
-	var tile_x = int(floor(position.x / maze.CELL_SIZE))
-	var tile_y = int(floor(position.y / maze.CELL_SIZE))
-	return Vector2i(tile_x, tile_y)
-
-func set_target_position(tile: Vector2i):
-	direction = (tile - get_tile_position()).sign() if tile != Vector2i(-1, -1) else direction
-
-func reset_state():
-	target_tile = Vector2i(-1, -1)
 	velocity = Vector2.ZERO
+	last_tile = current_tile
+	update_direction([Vector2i(-direction.y, direction.x), Vector2i(direction.y, -direction.x)].pick_random())
 
+# Updates direction and handles rotation state
+func update_direction(new_direction: Vector2):
+	if new_direction == Vector2.ZERO:
+		return
+
+	direction = new_direction.normalized()
+	target_rotation = normalize_angle(direction.angle())
+
+	if current_state == State.ROTATING:
+		return
+
+	if not is_facing_target():
+		previous_state = current_state if current_state != State.ROTATING else previous_state
+		set_state(State.ROTATING)
+	else:
+		rotation = target_rotation
+
+# Checks for collisions while charging
+func check_collisions():
+	for i in range(get_slide_collision_count()):
+		var coll = get_slide_collision(i)
+		if coll:
+			var collider = coll.get_collider()
+			if collider is Player:
+				print("~~~~~~Player caught~~~~~~")
+				set_state(State.IDLE)
+			else:
+				reset_state()
+				set_state(State.STUNNED)
+				stun_timer = stun_duration
+
+# Normalizes an angle to be within [0, TAU]
+func normalize_angle(angle: float) -> float:
+	angle = fmod(angle, TAU)
+	return angle + TAU if angle < 0 else angle
+
+# Gets the Minotaur's current tile position
+func get_tile_position() -> Vector2i:
+	return Vector2i(int(position.x / maze.CELL_SIZE), int(position.y / maze.CELL_SIZE))
+
+# Resets all movement-related state variables
+func reset_state():
+	last_known_player_pos = Vector2i(-1, -1)
+	target_tile = Vector2i(-1, -1)
+	charge_direction = Vector2.ZERO
+	velocity = Vector2.ZERO
+	set_state(State.SEARCHING)
+
+# Updates the Minotaur's state
+func set_state(new_state: int):
+	if current_state == State.ROTATING and new_state != State.ROTATING and not is_facing_target():
+		previous_state = new_state if previous_state != new_state else previous_state
+		return
+
+	if current_state != new_state:
+		current_state = new_state
+
+# Ensures accurate angle wrapping
+func rotation_difference(a: float, b: float) -> float:
+	var diff = fmod(normalize_angle(b) - normalize_angle(a), TAU)  # Get the shortest distance
+	if diff > PI:
+		diff -= TAU  # Wrap negative if over half a turn
+	elif diff < -PI:
+		diff += TAU  # Wrap positive if over half a turn
+	return diff
+
+# Checks if the Minotaur is facing its target
+func is_facing_target() -> bool:
+	return abs(rotation_difference(rotation, target_rotation)) <= rotation_threshold
+
+# Checks if the Minotaur is colliding with a wall
 func is_colliding_with_wall(target: Vector2i) -> bool:
 	return maze.has_wall_between(get_tile_position(), target)
 
+# Checks if the Minotaur is at its target tile
 func is_at_target_tile(recenter: bool = false) -> bool:
 	var current_tile = get_tile_position()
-	var target_center = Vector2(
-		(current_tile.x + 0.5) * maze.CELL_SIZE,
-		(current_tile.y + 0.5) * maze.CELL_SIZE
-	)
-	if position.distance_to(target_center) <= 0.5:
+	var target_center = (Vector2(target_tile if target_tile != Vector2i(-1, -1) else current_tile) * maze.CELL_SIZE) + half_cell + wall_offset
+	if position.distance_to(target_center) <= center_threshold: # If already close enough, snap into place
 		position = target_center
-		velocity = Vector2.ZERO
 		return true
-	if recenter:
-		var move_vec = (target_center - position).normalized()
-		var recenter_speed = move_speed / 2
-		velocity = move_vec * recenter_speed
-	return false
 
-func update_rotation():
-	if direction != Vector2i.ZERO:
-		rotation = Vector2(direction).angle()
+	if recenter: # Move toward the target center at a constant speed
+		var step_size = min((move_speed / 2) * get_physics_process_delta_time(), position.distance_to(target_center))
+		position = position.move_toward(target_center, step_size)
+
+	return false
