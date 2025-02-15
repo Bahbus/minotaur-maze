@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3 uid="uid://ctqlayhnybm7v"]
+
+[ext_resource type="Script" uid="uid://cbvwrky1s4jmg" path="res://src/data/door.gd" id="1_80g33"]
+[ext_resource type="Texture2D" uid="uid://gq048gfgtg5k" path="res://assets/wood_door_closed.png" id="2_qkrcv"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fiowe"]
+size = Vector2(30, 2)
+
+[node name="Door" type="StaticBody2D"]
+collision_mask = 0
+script = ExtResource("1_80g33")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(16, 0)
+shape = SubResource("RectangleShape2D_fiowe")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(16, 0)
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_qkrcv")
+
+[node name="Timer" type="Timer" parent="."]

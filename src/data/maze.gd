@@ -38,6 +38,7 @@ func _ready():
 	connect_room_exits()
 	place_exit_stairs()
 	build_collision_shapes()
+	check_maze()
 	spawn_player()
 	spawn_minotaur()
 	stack.clear()
@@ -249,11 +250,6 @@ func set_wall_state(pos: Vector2i, wall_index: int, state: bool):
 # Build rectangular collision shapes for each active wall
 # Optimize collision shape generation to prevent redundant colliders
 func build_collision_shapes():
-	var collision_body = StaticBody2D.new()
-	collision_body.set_collision_layer_value(1, true)
-	collision_body.set_collision_mask_value(1, false)
-	add_child(collision_body)
-	
 	for y in range(ROWS):
 		for x in range(COLS):
 			var cell_pos = Vector2i(x, y)
@@ -263,42 +259,22 @@ func build_collision_shapes():
 			var walls = get_walls(cell_pos)
 			
 			var wall_definitions = [
-				{ "wall": walls[0], "p1": base_pos, "p2": base_pos + Vector2(CELL_SIZE, 0) },  # Top
-				{ "wall": walls[1], "p1": base_pos + Vector2(CELL_SIZE, 0), "p2": base_pos + Vector2(CELL_SIZE, CELL_SIZE) },  # Right
-				{ "wall": walls[2], "p1": base_pos + Vector2(0, CELL_SIZE), "p2": base_pos + Vector2(CELL_SIZE, CELL_SIZE) },  # Bottom
-				{ "wall": walls[3], "p1": base_pos, "p2": base_pos + Vector2(0, CELL_SIZE) }  # Left
+				{ "wall": walls[0], "pos": base_pos, "rot": 0 },  # Top
+				{ "wall": walls[1], "pos": base_pos + Vector2(CELL_SIZE, 0), "rot": 90 },  # Right
+				{ "wall": walls[2], "pos": base_pos + Vector2(0, CELL_SIZE), "rot": 0 },  # Bottom
+				{ "wall": walls[3], "pos": base_pos, "rot": 90 }  # Left
 			]
 			
 			for w in wall_definitions:
 				if w["wall"]:
-					var key = "%s_%s_%s_%s" % [str(w["p1"].x), str(w["p1"].y), str(w["p2"].x), str(w["p2"].y)]
-					
-					# Ensure we only store unique edges
-					if not edge_map.has(key):
-						# Compute wall thickness
-						var direction = (w["p2"] - w["p1"]).normalized()
-						var perpendicular = Vector2(-direction.y, direction.x) * (WALL_THICKNESS / 2)
+					add_wall(w["pos"], w["rot"])
 
-						# Offset edges slightly outward to match actual wall thickness
-						var thick_p1 = w["p1"] - (perpendicular / 2)
-						var thick_p2 = w["p2"] + (perpendicular / 2)
-
-						edge_map[key] = {
-							"p1": thick_p1,
-							"p2": thick_p2,
-							"extents": abs(w["p2"] - w["p1"]) / 2  # Adjust for thickness
-						}
-						# Add actual wall collision
-						add_wall_collision(collision_body, (thick_p1 + thick_p2) / 2, edge_map[key]["extents"])
-
-func add_wall_collision(parent: Node, pos: Vector2, extents: Vector2):
-	var shape = RectangleShape2D.new()
-	shape.extents = Vector2(extents.x + WALL_THICKNESS / 2, extents.y + WALL_THICKNESS / 2)  # Adjusted for thickness
-	var collision_shape = CollisionShape2D.new()
-	collision_shape.shape = shape
-	collision_shape.position = pos
-	wall_bodies.append(collision_shape)
-	parent.add_child(collision_shape)
+func add_wall(pos: Vector2, rot: int, is_door: bool = false):
+	var wall_instance = preload("res://src/scenes/wall.tscn").instantiate()
+	wall_instance.position = pos
+	wall_instance.rotation_degrees = rot
+	wall_instance.is_door = is_door
+	add_child(wall_instance)
 
 # Optimize `find_valid_spawn_position()` using a flood-fill approach
 func find_valid_spawn_position(exit_pos: Vector2i) -> Vector2i:
@@ -361,12 +337,16 @@ func _draw():
 			if not is_within_bounds(cell_pos):
 				continue
 			var base_pos = Vector2(x * CELL_SIZE, y * CELL_SIZE)
+			
 			if is_type(cell_pos, "room"):
 				draw_rect(Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)), Color(0, 0, 1, 0.1), true)
 			if is_type(cell_pos, "exit_stairs"):
-				draw_rect(Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)), Color(0, 1, 0, 0.8), true)
+				draw_rect(Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)), Color(0, 1, 0, 0.2), true)
 
 			var walls = get_cell(cell_pos).get("walls", [true, true, true, true])
+			if walls == [true, true, true, true]:
+				draw_rect(Rect2(base_pos, Vector2(CELL_SIZE, CELL_SIZE)), Color.WHITE, true)
+			
 			var wall_positions = [
 				{ "start": base_pos, "end": base_pos + Vector2(CELL_SIZE, 0) },
 				{ "start": base_pos + Vector2(CELL_SIZE, 0), "end": base_pos + Vector2(CELL_SIZE, CELL_SIZE) },
@@ -392,6 +372,7 @@ func generate_new_maze():
 	connect_room_exits()
 	place_exit_stairs()
 	build_collision_shapes()
+	check_maze()
 	queue_redraw()
 	#start a timer for minotaur to show up
 	player.set_physics_process(true)
@@ -404,6 +385,16 @@ func remove_old_walls():
 func visit(pos: Vector2i):
 	if is_within_bounds(pos):
 		maze[pos.y][pos.x]["visited"] = true
+
+func check_maze():
+	var visit_check = 0
+	for y in range(ROWS):
+		for x in range(COLS):
+			if maze[y][x]["visited"]:
+				visit_check += 1
+	if visit_check < (ROWS * COLS) * 0.5:
+		print("Bad maze generation - redoing")
+		generate_new_maze()
 
 func is_type(pos: Vector2i, cell_type: String) -> bool:
 	return get_cell(pos).get("type", "") == cell_type
@@ -460,6 +451,3 @@ func has_wall_between(pos1: Vector2i, pos2: Vector2i) -> bool:
 			return maze[pos1.y][pos1.x]["walls"][2] or maze[pos2.y][pos2.x]["walls"][0]
 		_:
 			return true
-
-func get_maze_edges() -> Array:
-	return edge_map.values()
