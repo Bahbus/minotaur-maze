@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://bk1gmr6d3e3v7"]
+
+[ext_resource type="Script" uid="uid://wngox1u5e4sq" path="res://src/scenes/player/player.gd" id="1_swhsd"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_hv57j"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rj735"]
+size = Vector2(8, 8)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_cusn3"]
+size = Vector2(11.3137, 11.3137)
+
+[node name="Player" type="CharacterBody2D"]
+collision_layer = 16
+collision_mask = 35
+motion_mode = 1
+script = ExtResource("1_swhsd")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(8, 8)
+texture = SubResource("PlaceholderTexture2D_hv57j")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_rj735")
+
+[node name="InteractArea" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractArea"]
+position = Vector2(1.19209e-07, -1.19209e-07)
+rotation = 0.785398
+shape = SubResource("RectangleShape2D_cusn3")

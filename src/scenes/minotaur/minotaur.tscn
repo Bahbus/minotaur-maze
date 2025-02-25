@@ -1,0 +1,289 @@
+[gd_scene load_steps=30 format=3 uid="uid://dshmj48gfq8ga"]
+
+[ext_resource type="Script" uid="uid://tc461k74dyes" path="res://src/scenes/minotaur/minotaur.gd" id="1_ju0ml"]
+[ext_resource type="Texture2D" uid="uid://cvy6g5oii2wmf" path="res://assets/up_arrow.png" id="2_j7d1y"]
+[ext_resource type="Script" uid="uid://veshd35ytt0u" path="res://src/scenes/minotaur/vision.gd" id="3_43krf"]
+[ext_resource type="Script" uid="uid://dtqbhlxmduk2j" path="res://addons/beehave/blackboard.gd" id="4_b8ldp"]
+[ext_resource type="Script" uid="uid://bvcdmoliul3sy" path="res://addons/beehave/nodes/beehave_tree.gd" id="5_73kd7"]
+[ext_resource type="Script" uid="uid://crkus85hpyf0d" path="res://addons/beehave/nodes/composites/selector.gd" id="6_wnu2d"]
+[ext_resource type="Script" uid="uid://cl1yfh12srac0" path="res://addons/beehave/nodes/composites/sequence.gd" id="7_djea6"]
+[ext_resource type="Script" uid="uid://bynjqcp0h7g7j" path="res://addons/beehave/nodes/decorators/inverter.gd" id="8_lbubo"]
+[ext_resource type="Script" uid="uid://duxt7xgbytnxp" path="res://src/scenes/minotaur/is_active.gd" id="9_5ftxd"]
+[ext_resource type="Script" uid="uid://b657wj1n5m5ji" path="res://src/scenes/minotaur/lookout.gd" id="10_33eud"]
+[ext_resource type="Script" uid="uid://bke8rtd5us3gv" path="res://src/scenes/minotaur/saw_player.gd" id="11_px0dl"]
+[ext_resource type="Script" uid="uid://bcay4q1tx6opl" path="res://addons/beehave/nodes/composites/simple_parallel.gd" id="12_owy6d"]
+[ext_resource type="Script" uid="uid://b4nshaf4xnung" path="res://src/scenes/minotaur/charge.gd" id="13_esxcw"]
+[ext_resource type="Script" uid="uid://urcqeew4xt3n" path="res://src/scenes/minotaur/hit_player.gd" id="14_lm4lu"]
+[ext_resource type="Script" uid="uid://cfbvaxkyjae3b" path="res://addons/beehave/nodes/leaves/action.gd" id="15_7cpih"]
+[ext_resource type="Script" uid="uid://c0hk7lymr7n3k" path="res://src/scenes/minotaur/hit_wall.gd" id="16_d7u6w"]
+[ext_resource type="Script" uid="uid://db8ebww6sy4dj" path="res://addons/beehave/nodes/decorators/delayer.gd" id="17_rmteh"]
+[ext_resource type="Script" uid="uid://brte58owj7kvc" path="res://src/scenes/minotaur/recover.gd" id="18_kdqnj"]
+[ext_resource type="Script" uid="uid://byfc62no820fn" path="res://addons/beehave/nodes/composites/sequence_reactive.gd" id="19_b8ldp"]
+[ext_resource type="Script" uid="uid://bccadqg3o8x82" path="res://addons/beehave/nodes/composites/selector_reactive.gd" id="19_lbubo"]
+[ext_resource type="Script" uid="uid://but6g6bt0jfdr" path="res://src/scenes/minotaur/pick_target.gd" id="20_43krf"]
+[ext_resource type="Script" uid="uid://duinrph8bx0gd" path="res://src/scenes/minotaur/wander.gd" id="20_j7d1y"]
+[ext_resource type="Script" uid="uid://cvy3dua2xceb2" path="res://addons/beehave/nodes/decorators/cooldown.gd" id="22_wnu2d"]
+[ext_resource type="Script" uid="uid://efsr58it6cwk" path="res://src/scenes/minotaur/get_player_position.gd" id="23_djea6"]
+[ext_resource type="Script" uid="uid://dqk56ulp42fhs" path="res://src/scenes/minotaur/search.gd" id="24_djea6"]
+[ext_resource type="Script" uid="uid://bysktesbvf8kc" path="res://src/scenes/minotaur/move_to_last_known.gd" id="24_lbubo"]
+[ext_resource type="Script" uid="uid://ch8hm2qx1yi0o" path="res://addons/beehave/nodes/decorators/repeater.gd" id="25_5ftxd"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_nqrdg"]
+size = Vector2(16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_b8ldp"]
+size = Vector2(11.3137, 11.3137)
+
+[node name="Minotaur" type="CharacterBody2D"]
+collision_layer = 16
+collision_mask = 19
+motion_mode = 1
+script = ExtResource("1_ju0ml")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(1.78814e-07, -2.38419e-07)
+scale = Vector2(0.8, 0.8)
+texture = ExtResource("2_j7d1y")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_nqrdg")
+
+[node name="Vision" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 19
+script = ExtResource("3_43krf")
+
+[node name="Polygon2D" type="Polygon2D" parent="Vision"]
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Vision"]
+
+[node name="InteractArea" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractArea"]
+position = Vector2(8, -2.86102e-06)
+rotation = 0.785398
+shape = SubResource("RectangleShape2D_b8ldp")
+
+[node name="Timer" type="Timer" parent="."]
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 1.0
+target_desired_distance = 1.0
+path_max_distance = 192.0
+simplify_path = true
+simplify_epsilon = 5.0
+debug_enabled = true
+
+[node name="Blackboard" type="Node" parent="."]
+script = ExtResource("4_b8ldp")
+blackboard = {
+"charge_direction": Vector2(0, 0),
+"has_recovered": false,
+"hit_player": false,
+"hit_wall": false,
+"hunt_cooldown_on_start": true,
+"is_active": false,
+"saw_player": false,
+"target_position": Vector2(0, 0)
+}
+metadata/_custom_type_script = "uid://dtqbhlxmduk2j"
+
+[node name="BeehaveTree" type="Node" parent="." node_paths=PackedStringArray("blackboard", "actor")]
+script = ExtResource("5_73kd7")
+blackboard = NodePath("../Blackboard")
+actor = NodePath("..")
+metadata/_custom_type_script = "uid://bvcdmoliul3sy"
+
+[node name="SelectorComposite" type="Node" parent="BeehaveTree"]
+script = ExtResource("6_wnu2d")
+metadata/_custom_type_script = "uid://crkus85hpyf0d"
+
+[node name="Idle" type="Node" parent="BeehaveTree/SelectorComposite"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="InverterDecorator" type="Node" parent="BeehaveTree/SelectorComposite/Idle"]
+script = ExtResource("8_lbubo")
+metadata/_custom_type_script = "uid://bynjqcp0h7g7j"
+
+[node name="IsActive" type="Node" parent="BeehaveTree/SelectorComposite/Idle/InverterDecorator"]
+script = ExtResource("9_5ftxd")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="Lookout" type="Node" parent="BeehaveTree/SelectorComposite/Idle"]
+script = ExtResource("10_33eud")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="Active" type="Node" parent="BeehaveTree/SelectorComposite"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="IsActive" type="Node" parent="BeehaveTree/SelectorComposite/Active"]
+script = ExtResource("9_5ftxd")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="SelectActivity" type="Node" parent="BeehaveTree/SelectorComposite/Active"]
+script = ExtResource("6_wnu2d")
+metadata/_custom_type_script = "uid://crkus85hpyf0d"
+
+[node name="Charging" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="SawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging"]
+script = ExtResource("11_px0dl")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="ChargeAndCheck" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging"]
+script = ExtResource("12_owy6d")
+metadata/_custom_type_script = "uid://bcay4q1tx6opl"
+
+[node name="Charge" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck"]
+script = ExtResource("13_esxcw")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="HitCheck" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck"]
+script = ExtResource("6_wnu2d")
+metadata/_custom_type_script = "uid://crkus85hpyf0d"
+
+[node name="HitPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="HitPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck/HitPlayer"]
+script = ExtResource("14_lm4lu")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="GameOver" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck/HitPlayer"]
+script = ExtResource("15_7cpih")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="HitWall" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="HitWall" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck/HitWall"]
+script = ExtResource("16_d7u6w")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="Stunned" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck/HitWall"]
+script = ExtResource("17_rmteh")
+wait_time = 2.0
+metadata/_custom_type_script = "uid://db8ebww6sy4dj"
+
+[node name="Recover" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/ChargeAndCheck/HitCheck/HitWall/Stunned"]
+script = ExtResource("18_kdqnj")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="LookAround" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging"]
+script = ExtResource("25_5ftxd")
+repetitions = 5
+metadata/_custom_type_script = "uid://ch8hm2qx1yi0o"
+
+[node name="Searching" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/LookAround"]
+script = ExtResource("12_owy6d")
+metadata/_custom_type_script = "uid://bcay4q1tx6opl"
+
+[node name="Wait" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/LookAround/Searching"]
+script = ExtResource("17_rmteh")
+wait_time = 1.0
+metadata/_custom_type_script = "uid://db8ebww6sy4dj"
+
+[node name="Search" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/LookAround/Searching/Wait"]
+script = ExtResource("24_djea6")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="NotSawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/LookAround/Searching"]
+script = ExtResource("8_lbubo")
+metadata/_custom_type_script = "uid://bynjqcp0h7g7j"
+
+[node name="SawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/Charging/LookAround/Searching/NotSawPlayer"]
+script = ExtResource("11_px0dl")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="WanderOrHunt" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity"]
+script = ExtResource("19_lbubo")
+metadata/_custom_type_script = "uid://bccadqg3o8x82"
+
+[node name="Hunting" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt"]
+script = ExtResource("19_b8ldp")
+metadata/_custom_type_script = "uid://byfc62no820fn"
+
+[node name="NotSawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting"]
+script = ExtResource("8_lbubo")
+metadata/_custom_type_script = "uid://bynjqcp0h7g7j"
+
+[node name="SawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/NotSawPlayer"]
+script = ExtResource("11_px0dl")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="CooldownDecorator" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting"]
+script = ExtResource("22_wnu2d")
+wait_time = 60.0
+metadata/_custom_type_script = "uid://cvy3dua2xceb2"
+
+[node name="SequenceComposite" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="GetPlayerPosition" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite"]
+script = ExtResource("23_djea6")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="MoveToLastKnown" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite"]
+script = ExtResource("24_lbubo")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="LookAround" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite"]
+script = ExtResource("25_5ftxd")
+repetitions = 5
+metadata/_custom_type_script = "uid://ch8hm2qx1yi0o"
+
+[node name="Searching" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite/LookAround"]
+script = ExtResource("12_owy6d")
+metadata/_custom_type_script = "uid://bcay4q1tx6opl"
+
+[node name="Wait" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite/LookAround/Searching"]
+script = ExtResource("17_rmteh")
+wait_time = 1.0
+metadata/_custom_type_script = "uid://db8ebww6sy4dj"
+
+[node name="Search" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite/LookAround/Searching/Wait"]
+script = ExtResource("24_djea6")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="NotSawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite/LookAround/Searching"]
+script = ExtResource("8_lbubo")
+metadata/_custom_type_script = "uid://bynjqcp0h7g7j"
+
+[node name="SawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Hunting/CooldownDecorator/SequenceComposite/LookAround/Searching/NotSawPlayer"]
+script = ExtResource("11_px0dl")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="Wandering" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt"]
+script = ExtResource("19_b8ldp")
+metadata/_custom_type_script = "uid://byfc62no820fn"
+
+[node name="NotSawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Wandering"]
+script = ExtResource("8_lbubo")
+metadata/_custom_type_script = "uid://bynjqcp0h7g7j"
+
+[node name="SawPlayer" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Wandering/NotSawPlayer"]
+script = ExtResource("11_px0dl")
+metadata/_custom_type_script = "uid://dn0rollgumr4n"
+
+[node name="PickAndWander" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Wandering"]
+script = ExtResource("7_djea6")
+metadata/_custom_type_script = "uid://cl1yfh12srac0"
+
+[node name="PickTarget" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Wandering/PickAndWander"]
+script = ExtResource("20_43krf")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[node name="Wander" type="Node" parent="BeehaveTree/SelectorComposite/Active/SelectActivity/WanderOrHunt/Wandering/PickAndWander"]
+script = ExtResource("20_j7d1y")
+metadata/_custom_type_script = "uid://cfbvaxkyjae3b"
+
+[connection signal="body_entered" from="Vision" to="." method="_on_vision_body_entered"]
